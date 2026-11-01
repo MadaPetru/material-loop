@@ -1,5 +1,5 @@
 import { Link, router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
 import { Button } from '@/components/ui/Button';
 import { ErrorBanner } from '@/components/ui/ErrorBanner';
@@ -12,12 +12,19 @@ import { colors, fonts, spacing } from '@/lib/theme';
 import { toUserError } from '@/lib/userErrors';
 
 export default function LoginScreen() {
-  const { signIn, signInWithGoogle, isDemo } = useAuth();
+  const { signIn, signInWithGoogle, isDemo, user, loading: authLoading } = useAuth();
   const { t } = useLocale();
   const [email, setEmail] = useState(isDemo ? 'demo@materialloop.ro' : '');
   const [password, setPassword] = useState(isDemo ? 'demo1234' : '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Email/password replace + Google OAuth return (session restored on /login).
+  useEffect(() => {
+    if (!authLoading && user) {
+      router.replace('/');
+    }
+  }, [authLoading, user]);
 
   const onSubmit = async () => {
     if (busy) return;
@@ -29,7 +36,7 @@ export default function LoginScreen() {
     setBusy(true);
     try {
       await signIn(email.trim(), password.trim());
-      router.replace('/profile');
+      router.replace('/');
     } catch (e) {
       setError(toUserError(e));
     } finally {
@@ -42,7 +49,8 @@ export default function LoginScreen() {
     setBusy(true);
     try {
       const profile = await signInWithGoogle();
-      if (profile) router.replace('/profile');
+      if (profile) router.replace('/');
+      // Web: full-page redirect; useEffect sends home after session restores.
     } catch (e) {
       setError(toUserError(e, t('errors.googleInterrupted')));
     } finally {

@@ -27,7 +27,7 @@ export default function RegisterScreen() {
 
   useEffect(() => {
     if (!authLoading && user) {
-      router.replace('/profile');
+      router.replace('/');
     }
   }, [authLoading, user]);
 
@@ -49,7 +49,7 @@ export default function RegisterScreen() {
     setError(null);
     try {
       await signUp(email.trim(), password, displayName.trim());
-      router.replace('/profile');
+      router.replace('/');
     } catch (e) {
       setError(toUserError(e));
     } finally {
@@ -63,7 +63,7 @@ export default function RegisterScreen() {
     setError(null);
     try {
       const profile = await signInWithGoogle();
-      if (profile) router.replace('/profile');
+      if (profile) router.replace('/');
     } catch (e) {
       setError(toUserError(e, t('errors.googleInterrupted')));
     } finally {

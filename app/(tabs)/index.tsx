@@ -12,7 +12,6 @@ import {
 import { ListingCard } from '@/components/listings/ListingCard';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { LanguageSelector } from '@/components/ui/LanguageSelector';
 import { marketplace } from '@/lib/api/marketplace';
 import { colors, fonts, layout, radii, spacing } from '@/lib/theme';
 import type { ListingWithRelations } from '@/lib/types';
@@ -70,11 +69,6 @@ export default function HomeScreen() {
             >
               <View style={styles.heroOrb} />
               <View style={styles.heroOrbSmall} />
-              {!isDesktop ? (
-                <View style={styles.langRow}>
-                  <LanguageSelector />
-                </View>
-              ) : null}
               <Text style={[styles.brand, isDesktop && styles.brandDesktop]}>{t('common.brand')}</Text>
               <Text style={[styles.headline, isDesktop && styles.headlineDesktop]}>
                 {t('home.headline')}
@@ -177,7 +171,6 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     backgroundColor: 'rgba(184,90,42,0.25)',
   },
-  langRow: { alignSelf: 'flex-start', marginBottom: spacing.md },
   brand: {
     fontFamily: fonts.displayBold,
     fontSize: 36,
