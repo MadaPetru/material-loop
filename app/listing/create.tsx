@@ -1,9 +1,9 @@
 import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,14 +13,17 @@ import {
 } from 'react-native';
 import { LocationPicker } from '@/components/LocationPicker';
 import { Button } from '@/components/ui/Button';
+import { ErrorBanner } from '@/components/ui/ErrorBanner';
 import { Input } from '@/components/ui/Input';
 import { CATEGORIES, subcategoriesFor } from '@/data/categories';
-import { getCity } from '@/data/romania';
+import { formatCityCounty, getCity, nearestCity } from '@/data/romania';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLocale } from '@/contexts/LocaleContext';
 import { marketplace } from '@/lib/api/marketplace';
 import { MAX_PHOTOS } from '@/lib/config';
 import { conditionLabels, unitLabels } from '@/lib/labels';
 import { colors, fonts, radii, spacing } from '@/lib/theme';
+import { toUserError } from '@/lib/userErrors';
 import type { MeasurementUnit, ProductCondition } from '@/lib/types';
 
 const CONDITIONS = Object.keys(conditionLabels) as ProductCondition[];
@@ -28,6 +31,7 @@ const UNITS = Object.keys(unitLabels) as MeasurementUnit[];
 
 export default function CreateListingScreen() {
   const { user } = useAuth();
+  const { t } = useLocale();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [categoryId, setCategoryId] = useState(CATEGORIES[0].id);
@@ -45,21 +49,76 @@ export default function CreateListingScreen() {
   const [pickup, setPickup] = useState(true);
   const [delivery, setDelivery] = useState(false);
   const [storageNotes, setStorageNotes] = useState('');
-  const [countyId, setCountyId] = useState<string | null>('bh');
-  const [cityId, setCityId] = useState<string | null>('bh-oradea');
+  const [countyId, setCountyId] = useState<string | null>(null);
+  const [cityId, setCityId] = useState<string | null>(null);
   const [photos, setPhotos] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [locationNote, setLocationNote] = useState<string | null>(null);
+  const [detectingLocation, setDetectingLocation] = useState(false);
 
   const subs = useMemo(() => subcategoriesFor(categoryId), [categoryId]);
-  const needsStorage =
-    condition !== 'new_unopened' &&
-    (categoryId === 'cat-cement' || categoryId === 'cat-paint');
+
+  const applyCity = useCallback((nextCityId: string, note?: string) => {
+    const city = getCity(nextCityId);
+    if (!city) return;
+    setCityId(city.id);
+    setCountyId(city.countyId);
+    if (note) setLocationNote(note);
+  }, []);
+
+  const detectLocation = useCallback(async () => {
+    setDetectingLocation(true);
+    setLocationNote(t('createListing.locationDetecting'));
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setLocationNote(null);
+        return false;
+      }
+      const pos = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      const city = nearestCity(pos.coords.latitude, pos.coords.longitude);
+      if (!city) {
+        setLocationNote(null);
+        return false;
+      }
+      applyCity(
+        city.id,
+        t('createListing.locationDetected', { place: formatCityCounty(city.id) })
+      );
+      return true;
+    } catch {
+      setLocationNote(null);
+      return false;
+    } finally {
+      setDetectingLocation(false);
+    }
+  }, [applyCity, t]);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      if (user.cityId && getCity(user.cityId)) {
+        if (!cancelled) applyCity(user.cityId);
+        return;
+      }
+      if (!cancelled) await detectLocation();
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Intentionally once per signed-in user / profile city.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, user?.cityId]);
 
   if (!user) {
     return (
       <View style={styles.center}>
-        <Text style={styles.msg}>Autentifică-te pentru a publica.</Text>
-        <Button label="Autentificare" onPress={() => router.push('/(auth)/login')} />
+        <Text style={styles.msg}>{t('createListing.loginToPublish')}</Text>
+        <Button label={t('createListing.login')} onPress={() => router.push('/(auth)/login')} />
       </View>
     );
   }
@@ -76,28 +135,52 @@ export default function CreateListingScreen() {
     }
   };
 
+  const missingFields = (forPublish: boolean) => {
+    const missing: string[] = [];
+    if (!title.trim()) missing.push(t('createListing.fieldTitle'));
+    if (forPublish && !cityId) missing.push(t('createListing.fieldLocation'));
+    return missing;
+  };
+
   const submit = async (status: 'draft' | 'active') => {
-    if (!title.trim() || !description.trim() || !cityId) {
-      Alert.alert('Completare incompletă', 'Titlu, descriere și localitate sunt obligatorii.');
+    const forPublish = status === 'active';
+    const missing = missingFields(forPublish);
+    if (missing.length) {
+      setError(t('createListing.missingFields', { fields: missing.join(', ') }));
       return;
     }
-    if (needsStorage && !storageNotes.trim()) {
-      Alert.alert(
-        'Note de depozitare',
-        'Pentru materiale chimice / vopsele deschise sau parțial folosite, adaugă note de depozitare.'
-      );
+
+    // Drafts can skip location; use a safe fallback only if city somehow missing after checks.
+    let resolvedCityId = cityId;
+    if (!resolvedCityId && user.cityId && getCity(user.cityId)) {
+      resolvedCityId = user.cityId;
+    }
+    if (!resolvedCityId && forPublish) {
+      setError(t('createListing.missingFields', { fields: t('createListing.fieldLocation') }));
       return;
     }
-    const city = getCity(cityId);
+    if (!resolvedCityId) {
+      // Last-resort draft fallback so DB NOT NULL city_id is satisfied.
+      resolvedCityId = 'bh-oradea';
+    }
+
+    const city = getCity(resolvedCityId);
     if (!city) {
-      Alert.alert('Localitate invalidă');
+      setError(t('createListing.missingFields', { fields: t('createListing.fieldLocation') }));
       return;
     }
+
+    const trimmedTitle = title.trim();
+    const trimmedDescription = description.trim() || trimmedTitle;
+    const parsedPrice = Number(price.replace(',', '.'));
+    const free = isFree || !price.trim() || !Number.isFinite(parsedPrice) || parsedPrice <= 0;
+
     setBusy(true);
+    setError(null);
     try {
       const listing = await marketplace.createListing(user.id, {
-        title: title.trim(),
-        description: description.trim(),
+        title: trimmedTitle,
+        description: trimmedDescription,
         categoryId,
         subcategoryId,
         brand: brand.trim() || null,
@@ -106,11 +189,11 @@ export default function CreateListingScreen() {
         quantity: Number(quantity.replace(',', '.')) || 1,
         unit,
         originalPackageQuantity: null,
-        price: isFree ? 0 : Number(price.replace(',', '.')) || 0,
+        price: free ? 0 : parsedPrice,
         currency: 'RON',
-        isNegotiable: isFree ? false : isNegotiable,
-        isFree,
-        cityId,
+        isNegotiable: free ? false : isNegotiable,
+        isFree: free,
+        cityId: city.id,
         countryId: 'ro',
         lat: city.lat,
         lng: city.lng,
@@ -122,27 +205,41 @@ export default function CreateListingScreen() {
       });
       router.replace(`/listing/${listing.id}`);
     } catch (e) {
-      Alert.alert('Eroare', e instanceof Error ? e.message : 'Nu am putut salva anunțul');
+      setError(toUserError(e, t('errors.genericRetry')));
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={{ padding: spacing.xl, gap: spacing.md, paddingBottom: 60 }}>
-      <Text style={styles.brand}>MaterialLoop</Text>
-      <Text style={styles.title}>Detalii material</Text>
+    <ScrollView
+      style={styles.root}
+      contentContainerStyle={{ padding: spacing.xl, gap: spacing.md, paddingBottom: 60 }}
+      keyboardShouldPersistTaps="handled"
+    >
+      <Text style={styles.brand}>{t('common.brand')}</Text>
+      <Text style={styles.title}>{t('createListing.heading')}</Text>
+      <Text style={styles.hint}>{t('createListing.hint')}</Text>
+      <ErrorBanner message={error} />
 
-      <Input label="Titlu" value={title} onChangeText={setTitle} placeholder="ex. Adeziv Ceresit 3 saci" />
       <Input
-        label="Descriere"
+        label={t('createListing.titleRequired')}
+        value={title}
+        onChangeText={(v) => {
+          setTitle(v);
+          setError(null);
+        }}
+        placeholder="ex. Adeziv Ceresit 3 saci"
+      />
+      <Input
+        label={t('createListing.descriptionOptional')}
         value={description}
         onChangeText={setDescription}
         multiline
         style={{ minHeight: 100, textAlignVertical: 'top' }}
       />
 
-      <Text style={styles.label}>Categorie</Text>
+      <Text style={styles.label}>{t('createListing.category')}</Text>
       <View style={styles.wrapRow}>
         {CATEGORIES.map((c) => (
           <Pressable
@@ -158,23 +255,29 @@ export default function CreateListingScreen() {
         ))}
       </View>
 
-      <Text style={styles.label}>Subcategorie</Text>
-      <View style={styles.wrapRow}>
-        {subs.map((s) => (
-          <Pressable
-            key={s.id}
-            onPress={() => setSubcategoryId(s.id)}
-            style={[styles.chip, subcategoryId === s.id && styles.chipActive]}
-          >
-            <Text style={[styles.chipText, subcategoryId === s.id && styles.chipTextActive]}>{s.name}</Text>
-          </Pressable>
-        ))}
-      </View>
+      {subs.length ? (
+        <>
+          <Text style={styles.label}>{t('createListing.subcategory')}</Text>
+          <View style={styles.wrapRow}>
+            {subs.map((s) => (
+              <Pressable
+                key={s.id}
+                onPress={() => setSubcategoryId(s.id)}
+                style={[styles.chip, subcategoryId === s.id && styles.chipActive]}
+              >
+                <Text style={[styles.chipText, subcategoryId === s.id && styles.chipTextActive]}>
+                  {s.name}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </>
+      ) : null}
 
-      <Input label="Brand (opțional)" value={brand} onChangeText={setBrand} />
-      <Input label="Model / referință (opțional)" value={model} onChangeText={setModel} />
+      <Input label={t('createListing.brand')} value={brand} onChangeText={setBrand} />
+      <Input label={t('createListing.model')} value={model} onChangeText={setModel} />
 
-      <Text style={styles.label}>Stare</Text>
+      <Text style={styles.label}>{t('createListing.condition')}</Text>
       <View style={styles.wrapRow}>
         {CONDITIONS.map((c) => (
           <Pressable
@@ -191,10 +294,15 @@ export default function CreateListingScreen() {
 
       <View style={styles.row2}>
         <View style={{ flex: 1 }}>
-          <Input label="Cantitate" value={quantity} onChangeText={setQuantity} keyboardType="decimal-pad" />
+          <Input
+            label={t('createListing.quantity')}
+            value={quantity}
+            onChangeText={setQuantity}
+            keyboardType="decimal-pad"
+          />
         </View>
       </View>
-      <Text style={styles.label}>Unitate</Text>
+      <Text style={styles.label}>{t('createListing.unit')}</Text>
       <View style={styles.wrapRow}>
         {UNITS.map((u) => (
           <Pressable
@@ -208,63 +316,84 @@ export default function CreateListingScreen() {
       </View>
 
       <View style={styles.switchRow}>
-        <Text style={styles.switchLabel}>Material gratuit</Text>
-        <Switch value={isFree} onValueChange={setIsFree} />
+        <Text style={styles.switchLabel}>{t('createListing.free')}</Text>
+        <Switch
+          value={isFree}
+          onValueChange={(v) => {
+            setIsFree(v);
+            if (v) setPrice('');
+          }}
+        />
       </View>
       {!isFree ? (
         <>
-          <Input label="Preț (RON)" value={price} onChangeText={setPrice} keyboardType="decimal-pad" />
+          <Input
+            label={t('createListing.price')}
+            value={price}
+            onChangeText={setPrice}
+            keyboardType="decimal-pad"
+          />
           <View style={styles.switchRow}>
-            <Text style={styles.switchLabel}>Preț negociabil</Text>
+            <Text style={styles.switchLabel}>{t('createListing.negotiable')}</Text>
             <Switch value={isNegotiable} onValueChange={setIsNegotiable} />
           </View>
         </>
       ) : null}
 
       <View style={styles.switchRow}>
-        <Text style={styles.switchLabel}>Ridicare</Text>
+        <Text style={styles.switchLabel}>{t('createListing.pickup')}</Text>
         <Switch value={pickup} onValueChange={setPickup} />
       </View>
       <View style={styles.switchRow}>
-        <Text style={styles.switchLabel}>Livrare posibilă</Text>
+        <Text style={styles.switchLabel}>{t('createListing.delivery')}</Text>
         <Switch value={delivery} onValueChange={setDelivery} />
       </View>
 
-      {(needsStorage || storageNotes) && (
-        <Input
-          label="Note depozitare / siguranță"
-          value={storageNotes}
-          onChangeText={setStorageNotes}
-          multiline
-          style={{ minHeight: 80, textAlignVertical: 'top' }}
-        />
-      )}
+      <Input
+        label={t('createListing.storage')}
+        value={storageNotes}
+        onChangeText={setStorageNotes}
+        multiline
+        style={{ minHeight: 80, textAlignVertical: 'top' }}
+      />
 
-      <Text style={styles.label}>Locație (aproximativă)</Text>
+      <Text style={styles.label}>{t('createListing.location')}</Text>
+      <Text style={styles.hint}>{t('createListing.locationHint')}</Text>
+      {locationNote ? <Text style={styles.locationNote}>{locationNote}</Text> : null}
+      <Button
+        label={detectingLocation ? t('createListing.locationDetecting') : t('createListing.useMyLocation')}
+        variant="secondary"
+        onPress={() => detectLocation()}
+        disabled={detectingLocation || busy}
+      />
       <LocationPicker
         countyId={countyId}
         cityId={cityId}
         onChange={({ countyId: c, cityId: city }) => {
           setCountyId(c);
           setCityId(city);
+          setLocationNote(null);
+          setError(null);
         }}
       />
 
-      <Text style={styles.label}>Fotografii ({photos.length}/{MAX_PHOTOS})</Text>
+      <Text style={styles.label}>
+        {t('createListing.photos', { count: photos.length, max: MAX_PHOTOS })}
+      </Text>
       <View style={styles.photos}>
         {photos.map((uri) => (
           <Image key={uri} source={{ uri }} style={styles.thumb} />
         ))}
       </View>
-      <Button label="Adaugă fotografii" variant="secondary" onPress={pickPhotos} />
+      <Button label={t('createListing.addPhotos')} variant="secondary" onPress={pickPhotos} />
 
       <Button
-        label={busy ? 'Se publică…' : 'Publică anunț'}
+        label={busy ? t('createListing.publishing') : t('createListing.publish')}
         onPress={() => submit('active')}
         disabled={busy}
       />
       <Button
-        label="Salvează ciornă"
+        label={busy ? t('createListing.saving') : t('createListing.saveDraft')}
         variant="ghost"
         onPress={() => submit('draft')}
         disabled={busy}
@@ -278,7 +407,20 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', padding: spacing.xl, gap: spacing.md },
   msg: { fontFamily: fonts.sans, color: colors.inkMuted, textAlign: 'center' },
   brand: { fontFamily: fonts.displayBold, color: colors.brand, fontSize: 22 },
-  title: { fontFamily: fonts.display, fontSize: 26, color: colors.ink, marginBottom: spacing.sm },
+  title: { fontFamily: fonts.display, fontSize: 26, color: colors.ink },
+  hint: {
+    fontFamily: fonts.sans,
+    color: colors.inkMuted,
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: spacing.xs,
+  },
+  locationNote: {
+    fontFamily: fonts.sansMedium,
+    color: colors.brandDark,
+    fontSize: 13,
+    lineHeight: 18,
+  },
   label: { fontFamily: fonts.sansMedium, color: colors.inkMuted, fontSize: 13 },
   wrapRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   chip: {

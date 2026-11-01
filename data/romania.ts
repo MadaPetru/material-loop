@@ -1,3 +1,4 @@
+import { haversineKm } from '@/lib/geo';
 import type { City, Country, County } from '@/lib/types';
 
 export const COUNTRY_RO: Country = {
@@ -188,4 +189,18 @@ export function formatCityCounty(cityId: string) {
   if (!city) return 'România';
   const county = getCounty(city.countyId);
   return county ? `${city.name}, ${county.name}` : city.name;
+}
+
+/** Closest seeded city to a lat/lng (for auto location from GPS). */
+export function nearestCity(lat: number, lng: number) {
+  let best: City | null = null;
+  let bestKm = Number.POSITIVE_INFINITY;
+  for (const city of CITIES) {
+    const km = haversineKm(lat, lng, city.lat, city.lng);
+    if (km < bestKm) {
+      bestKm = km;
+      best = city;
+    }
+  }
+  return best;
 }
