@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   FlatList,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -23,12 +24,12 @@ export default function SearchScreen() {
   const [countyId, setCountyId] = useState<string | null>(null);
   const [cityId, setCityId] = useState<string | null>(null);
   const [categoryId, setCategoryId] = useState<string | undefined>();
-  const [radiusKm, setRadiusKm] = useState<number | null>(50);
+  const [radiusKm, setRadiusKm] = useState<number | null>(null);
   const [freeOnly, setFreeOnly] = useState(false);
   const [items, setItems] = useState<ListingWithRelations[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [showFilters, setShowFilters] = useState(false);
+  const [showFilters, setShowFilters] = useState(true);
 
   const filters: SearchFilters = useMemo(() => {
     const city = cityId ? getCity(cityId) : null;
@@ -40,7 +41,7 @@ export default function SearchScreen() {
       cityId: cityId || undefined,
       freeOnly: freeOnly || undefined,
       radiusKm: countryWide ? null : radiusKm,
-      countryWide,
+      countryWide: countryWide || radiusKm == null,
       centerLat: city?.lat,
       centerLng: city?.lng,
       sort: city ? 'nearest' : 'newest',
@@ -73,6 +74,11 @@ export default function SearchScreen() {
     };
   }, [filters]);
 
+  const categoryOptions = [
+    { id: undefined as string | undefined, name: 'Toate' },
+    ...CATEGORIES.map((c) => ({ id: c.id as string | undefined, name: c.name })),
+  ];
+
   return (
     <View style={styles.root}>
       <View style={styles.top}>
@@ -84,26 +90,30 @@ export default function SearchScreen() {
           returnKeyType="search"
         />
         <View style={styles.actions}>
-          <Pressable style={styles.filterBtn} onPress={() => setShowFilters((v) => !v)}>
+          <Pressable
+            accessibilityRole="button"
+            style={styles.filterBtn}
+            onPress={() => setShowFilters((v) => !v)}
+          >
             <Text style={styles.filterBtnText}>{showFilters ? 'Ascunde filtre' : 'Filtre'}</Text>
           </Pressable>
-          <Pressable style={styles.searchBtn} onPress={runSearch}>
+          <Pressable accessibilityRole="button" style={styles.searchBtn} onPress={runSearch}>
             <Text style={styles.searchBtnText}>Caută</Text>
           </Pressable>
         </View>
+
         {showFilters ? (
-          <View style={styles.filters}>
+          <ScrollView
+            style={styles.filtersScroll}
+            contentContainerStyle={styles.filters}
+            nestedScrollEnabled
+            keyboardShouldPersistTaps="handled"
+          >
             <Text style={styles.label}>Categorie</Text>
-            <FlatList
-              horizontal
-              data={[{ id: undefined, name: 'Toate' } as { id?: string; name: string }].concat(
-                CATEGORIES.map((c) => ({ id: c.id, name: c.name }))
-              )}
-              keyExtractor={(item) => item.id ?? 'all'}
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ gap: spacing.sm }}
-              renderItem={({ item }) => (
+            <View style={styles.wrapRow}>
+              {categoryOptions.map((item) => (
                 <Pressable
+                  key={item.id ?? 'all'}
                   onPress={() => setCategoryId(item.id)}
                   style={[styles.chip, categoryId === item.id && styles.chipActive]}
                 >
@@ -111,16 +121,18 @@ export default function SearchScreen() {
                     {item.name}
                   </Text>
                 </Pressable>
-              )}
-            />
+              ))}
+            </View>
+
             <Pressable
               onPress={() => setFreeOnly((v) => !v)}
               style={[styles.chip, freeOnly && styles.chipActive, { alignSelf: 'flex-start' }]}
             >
               <Text style={[styles.chipText, freeOnly && styles.chipTextActive]}>Doar gratuite</Text>
             </Pressable>
+
             <Text style={styles.label}>Rază</Text>
-            <View style={styles.radiusRow}>
+            <View style={styles.wrapRow}>
               {radiusOptions.map((opt) => (
                 <Pressable
                   key={String(opt.value)}
@@ -133,6 +145,7 @@ export default function SearchScreen() {
                 </Pressable>
               ))}
             </View>
+
             <LocationPicker
               countyId={countyId}
               cityId={cityId}
@@ -141,8 +154,9 @@ export default function SearchScreen() {
                 setCityId(city);
               }}
             />
-          </View>
+          </ScrollView>
         ) : null}
+
         <Text style={styles.count}>{loading ? 'Se caută…' : `${total} anunțuri`}</Text>
       </View>
 
@@ -153,6 +167,7 @@ export default function SearchScreen() {
           data={items}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg, paddingBottom: 48 }}
+          keyboardShouldPersistTaps="handled"
           ListEmptyComponent={
             <EmptyState
               title="Niciun rezultat"
@@ -174,6 +189,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.line,
     backgroundColor: colors.bgElevated,
+    maxHeight: '55%',
   },
   actions: { flexDirection: 'row', gap: spacing.sm },
   filterBtn: {
@@ -195,9 +211,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   searchBtnText: { fontFamily: fonts.sansBold, color: colors.white },
-  filters: { gap: spacing.sm },
+  filtersScroll: { flexGrow: 0 },
+  filters: { gap: spacing.sm, paddingBottom: spacing.sm },
   label: { fontFamily: fonts.sansMedium, color: colors.inkMuted, fontSize: 13, marginTop: spacing.xs },
-  radiusRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  wrapRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   chip: {
     borderWidth: 1,
     borderColor: colors.line,

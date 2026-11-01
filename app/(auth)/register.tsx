@@ -21,7 +21,7 @@ export default function RegisterScreen() {
     setBusy(true);
     try {
       await signUp(email.trim(), password, displayName.trim());
-      router.replace('/(tabs)/profile');
+      router.replace('/profile');
     } catch (e) {
       Alert.alert('Înregistrare eșuată', e instanceof Error ? e.message : 'Eroare');
     } finally {

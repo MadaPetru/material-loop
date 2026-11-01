@@ -47,11 +47,25 @@ async function load() {
   if (memory) return memory;
   if (!ready) {
     ready = (async () => {
+      const defaults = defaultState();
       try {
         const raw = await AsyncStorage.getItem(STORAGE_KEY);
-        memory = raw ? (JSON.parse(raw) as DemoState) : defaultState();
+        if (!raw) {
+          memory = defaults;
+          return;
+        }
+        const parsed = JSON.parse(raw) as Partial<DemoState>;
+        // Merge so older local demos still keep seed passwords / data shape.
+        memory = {
+          profiles: parsed.profiles?.length ? parsed.profiles : defaults.profiles,
+          listings: parsed.listings?.length ? parsed.listings : defaults.listings,
+          photos: parsed.photos?.length ? parsed.photos : defaults.photos,
+          favorites: parsed.favorites ?? [],
+          sessionUserId: parsed.sessionUserId ?? null,
+          passwords: { ...defaults.passwords, ...(parsed.passwords ?? {}) },
+        };
       } catch {
-        memory = defaultState();
+        memory = defaults;
       }
     })();
   }

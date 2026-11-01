@@ -1,5 +1,5 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { Tabs } from 'expo-router';
+import { Tabs, router } from 'expo-router';
 import { colors, fonts } from '@/lib/theme';
 
 function TabIcon(props: {
@@ -28,21 +28,37 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Acasă',
+          href: '/',
           tabBarIcon: ({ color }) => <TabIcon name="home" color={String(color)} />,
           headerShown: false,
+        }}
+        listeners={{
+          tabPress: (e) => {
+            // When a listing detail is open above tabs, always return to home.
+            e.preventDefault();
+            router.navigate('/');
+          },
         }}
       />
       <Tabs.Screen
         name="search"
         options={{
           title: 'Caută',
+          href: '/search',
           tabBarIcon: ({ color }) => <TabIcon name="search" color={String(color)} />,
+        }}
+        listeners={{
+          tabPress: (e) => {
+            e.preventDefault();
+            router.navigate('/search');
+          },
         }}
       />
       <Tabs.Screen
         name="sell"
         options={{
           title: 'Vinde',
+          href: '/sell',
           tabBarIcon: ({ color }) => <TabIcon name="plus-circle" color={String(color)} />,
         }}
       />
@@ -50,6 +66,7 @@ export default function TabLayout() {
         name="favorites"
         options={{
           title: 'Favorite',
+          href: '/favorites',
           tabBarIcon: ({ color }) => <TabIcon name="heart" color={String(color)} />,
         }}
       />
@@ -57,6 +74,7 @@ export default function TabLayout() {
         name="messages"
         options={{
           title: 'Mesaje',
+          href: '/messages',
           tabBarIcon: ({ color }) => <TabIcon name="comments" color={String(color)} />,
         }}
       />
@@ -64,7 +82,14 @@ export default function TabLayout() {
         name="profile"
         options={{
           title: 'Profil',
+          href: '/profile',
           tabBarIcon: ({ color }) => <TabIcon name="user" color={String(color)} />,
+        }}
+        listeners={{
+          tabPress: (e) => {
+            e.preventDefault();
+            router.navigate('/profile');
+          },
         }}
       />
     </Tabs>
