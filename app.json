@@ -49,6 +49,15 @@
         {
           "locationWhenInUsePermission": "MaterialLoop folosește locația pentru a găsi materiale în apropiere."
         }
+      ],
+      [
+        "expo-localization",
+        {
+          "supportedLocales": {
+            "ios": ["en", "ro"],
+            "android": ["en", "ro"]
+          }
+        }
       ]
     ],
     "experiments": {

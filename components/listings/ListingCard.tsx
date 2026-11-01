@@ -1,12 +1,14 @@
 import { Image } from 'expo-image';
 import { Link } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useLocale } from '@/contexts/LocaleContext';
 import { formatPrice, formatQuantity } from '@/lib/labels';
 import { colors, fonts, radii, shadows, spacing } from '@/lib/theme';
 import type { ListingWithRelations } from '@/lib/types';
 import { formatCityCounty } from '@/data/romania';
 
 export function ListingCard({ listing }: { listing: ListingWithRelations }) {
+  const { t } = useLocale();
   const photo = listing.photos[0]?.url;
   return (
     <Link href={`/listing/${listing.id}`} asChild>
@@ -20,12 +22,12 @@ export function ListingCard({ listing }: { listing: ListingWithRelations }) {
             <Image source={{ uri: photo }} style={styles.image} contentFit="cover" transition={200} />
           ) : (
             <View style={[styles.image, styles.placeholder]}>
-              <Text style={styles.placeholderText}>Fără foto</Text>
+              <Text style={styles.placeholderText}>{t('common.noPhoto')}</Text>
             </View>
           )}
           {listing.isFree ? (
             <View style={styles.badge}>
-              <Text style={styles.badgeText}>Gratuit</Text>
+              <Text style={styles.badgeText}>{t('common.free')}</Text>
             </View>
           ) : null}
         </View>

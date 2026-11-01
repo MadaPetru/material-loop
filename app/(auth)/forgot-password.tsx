@@ -3,7 +3,9 @@ import { StyleSheet, Text } from 'react-native';
 import { Button } from '@/components/ui/Button';
 import { ErrorBanner } from '@/components/ui/ErrorBanner';
 import { Input } from '@/components/ui/Input';
+import { LanguageSelector } from '@/components/ui/LanguageSelector';
 import { Screen } from '@/components/ui/Screen';
+import { useLocale } from '@/contexts/LocaleContext';
 import { getSupabase } from '@/lib/supabase';
 import { marketplace } from '@/lib/api/marketplace';
 import { colors, fonts } from '@/lib/theme';
@@ -11,6 +13,7 @@ import { toUserError } from '@/lib/userErrors';
 import * as Linking from 'expo-linking';
 
 export default function ForgotPasswordScreen() {
+  const { t } = useLocale();
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -18,21 +21,19 @@ export default function ForgotPasswordScreen() {
 
   const onSubmit = async () => {
     if (!email.trim() || !email.includes('@')) {
-      setError('Introdu un email valid.');
+      setError(t('auth.emailInvalid'));
       return;
     }
     setError(null);
 
     if (marketplace.isDemo) {
-      setError(
-        'În modul demonstrație nu trimitem email. Folosește demo@materialloop.ro / demo1234.'
-      );
+      setError(t('auth.forgotDemo'));
       return;
     }
 
     const sb = getSupabase();
     if (!sb) {
-      setError('Resetarea parolei nu e disponibilă momentan.');
+      setError(t('auth.forgotUnavailable'));
       return;
     }
 
@@ -53,20 +54,16 @@ export default function ForgotPasswordScreen() {
 
   return (
     <Screen scroll narrow>
-      <Text style={styles.title}>Recuperare parolă</Text>
-      <Text style={styles.sub}>
-        Introdu emailul contului. Dacă există, îți trimitem un link de resetare.
-      </Text>
+      <LanguageSelector />
+      <Text style={styles.title}>{t('auth.forgotTitle')}</Text>
+      <Text style={styles.sub}>{t('auth.forgotSub')}</Text>
       <ErrorBanner message={error} />
       {done ? (
-        <Text style={styles.success}>
-          Dacă există un cont pentru {email.trim()}, vei primi un email în scurt timp. Verifică și
-          folderul Spam.
-        </Text>
+        <Text style={styles.success}>{t('auth.resetSuccess', { email: email.trim() })}</Text>
       ) : (
         <>
           <Input
-            label="Email"
+            label={t('auth.email')}
             autoCapitalize="none"
             keyboardType="email-address"
             value={email}
@@ -76,7 +73,11 @@ export default function ForgotPasswordScreen() {
             }}
             error={error && !email.includes('@') ? error : undefined}
           />
-          <Button label={busy ? 'Se trimite…' : 'Trimite link'} onPress={onSubmit} disabled={busy} />
+          <Button
+            label={busy ? t('auth.sending') : t('auth.sendLink')}
+            onPress={onSubmit}
+            disabled={busy}
+          />
         </>
       )}
     </Screen>

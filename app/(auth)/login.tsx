@@ -1,16 +1,19 @@
 import { Link, router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text } from 'react-native';
 import { Button } from '@/components/ui/Button';
 import { ErrorBanner } from '@/components/ui/ErrorBanner';
 import { Input } from '@/components/ui/Input';
+import { LanguageSelector } from '@/components/ui/LanguageSelector';
 import { Screen } from '@/components/ui/Screen';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLocale } from '@/contexts/LocaleContext';
 import { colors, fonts, spacing } from '@/lib/theme';
-import { toUserError, USER_COPY } from '@/lib/userErrors';
+import { toUserError } from '@/lib/userErrors';
 
 export default function LoginScreen() {
   const { signIn, signInWithGoogle, isDemo } = useAuth();
+  const { t } = useLocale();
   const [email, setEmail] = useState(isDemo ? 'demo@materialloop.ro' : '');
   const [password, setPassword] = useState(isDemo ? 'demo1234' : '');
   const [busy, setBusy] = useState(false);
@@ -19,7 +22,7 @@ export default function LoginScreen() {
   const onSubmit = async () => {
     if (busy) return;
     if (!email.trim() || !password) {
-      setError('Completează emailul și parola.');
+      setError(t('auth.fillEmailPassword'));
       return;
     }
     setError(null);
@@ -28,7 +31,7 @@ export default function LoginScreen() {
       await signIn(email.trim(), password.trim());
       router.replace('/profile');
     } catch (e) {
-      setError(toUserError(e, USER_COPY.unknown));
+      setError(toUserError(e));
     } finally {
       setBusy(false);
     }
@@ -41,7 +44,7 @@ export default function LoginScreen() {
       const profile = await signInWithGoogle();
       if (profile) router.replace('/profile');
     } catch (e) {
-      setError(toUserError(e, USER_COPY.googleInterrupted));
+      setError(toUserError(e, t('errors.googleInterrupted')));
     } finally {
       setBusy(false);
     }
@@ -49,14 +52,13 @@ export default function LoginScreen() {
 
   return (
     <Screen scroll narrow>
-      <Text style={styles.brand}>MaterialLoop</Text>
-      <Text style={styles.title}>Intră în cont</Text>
-      {isDemo ? (
-        <Text style={styles.hint}>Demo: demo@materialloop.ro / demo1234</Text>
-      ) : null}
+      <LanguageSelector />
+      <Text style={styles.brand}>{t('common.brand')}</Text>
+      <Text style={styles.title}>{t('auth.loginTitle')}</Text>
+      {isDemo ? <Text style={styles.hint}>{t('auth.demoHint')}</Text> : null}
       <ErrorBanner message={error} />
       <Input
-        label="Email"
+        label={t('auth.email')}
         autoCapitalize="none"
         keyboardType="email-address"
         autoComplete="email"
@@ -67,7 +69,7 @@ export default function LoginScreen() {
         }}
       />
       <Input
-        label="Parolă"
+        label={t('auth.password')}
         secureTextEntry
         autoComplete="password"
         value={password}
@@ -77,21 +79,25 @@ export default function LoginScreen() {
         }}
         onSubmitEditing={onSubmit}
       />
-      <Button label={busy ? 'Se conectează…' : 'Autentificare'} onPress={onSubmit} disabled={busy} />
       <Button
-        label={busy ? 'Se deschide Google…' : 'Continuă cu Google'}
+        label={busy ? t('auth.signingIn') : t('auth.signIn')}
+        onPress={onSubmit}
+        disabled={busy}
+      />
+      <Button
+        label={busy ? t('auth.openingGoogle') : t('auth.continueGoogle')}
         variant="secondary"
         onPress={onGoogle}
         disabled={busy}
       />
       <Link href="/(auth)/forgot-password" asChild>
         <Pressable>
-          <Text style={styles.link}>Ai uitat parola?</Text>
+          <Text style={styles.link}>{t('auth.forgotPassword')}</Text>
         </Pressable>
       </Link>
       <Link href="/(auth)/register" asChild>
         <Pressable>
-          <Text style={styles.link}>Nu ai cont? Înregistrează-te</Text>
+          <Text style={styles.link}>{t('auth.noAccount')}</Text>
         </Pressable>
       </Link>
     </Screen>

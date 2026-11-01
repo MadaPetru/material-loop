@@ -6,6 +6,9 @@ import { approximateCoords, daysFromNow, haversineKm } from '@/lib/geo';
 import { createId } from '@/lib/id';
 import { LISTING_EXPIRY_DAYS } from '@/lib/config';
 import type {
+  ChatMessage,
+  Conversation,
+  ConversationWithMeta,
   Favorite,
   Listing,
   ListingDraft,
@@ -14,14 +17,17 @@ import type {
   Profile,
   SearchFilters,
 } from '@/lib/types';
+import { otherParticipantId, withMeta } from './messaging-shared';
 
-const STORAGE_KEY = 'materialloop.demo.v1';
+const STORAGE_KEY = 'materialloop.demo.v2';
 
 type DemoState = {
   profiles: Profile[];
   listings: Listing[];
   photos: ListingPhoto[];
   favorites: Favorite[];
+  conversations: Conversation[];
+  messages: ChatMessage[];
   sessionUserId: string | null;
   passwords: Record<string, string>;
 };
@@ -35,6 +41,8 @@ function defaultState(): DemoState {
     listings: structuredClone(SEED_LISTINGS),
     photos: structuredClone(SEED_PHOTOS),
     favorites: [],
+    conversations: [],
+    messages: [],
     sessionUserId: null,
     passwords: {
       'demo@materialloop.ro': 'demo1234',
@@ -61,6 +69,8 @@ async function load() {
           listings: parsed.listings?.length ? parsed.listings : defaults.listings,
           photos: parsed.photos?.length ? parsed.photos : defaults.photos,
           favorites: parsed.favorites ?? [],
+          conversations: parsed.conversations ?? [],
+          messages: parsed.messages ?? [],
           sessionUserId: parsed.sessionUserId ?? null,
           passwords: { ...defaults.passwords, ...(parsed.passwords ?? {}) },
         };
@@ -376,6 +386,117 @@ export const demoDb = {
     });
     await save();
     return true;
+  },
+
+  async listConversations(userId: string): Promise<ConversationWithMeta[]> {
+    const state = await load();
+    const mine = state.conversations
+      .filter((c) => c.buyerId === userId || c.sellerId === userId)
+      .sort((a, b) => b.lastMessageAt.localeCompare(a.lastMessageAt));
+
+    return mine.map((c) => {
+      const listing = state.listings.find((l) => l.id === c.listingId);
+      const otherId = otherParticipantId(c, userId);
+      const last = state.messages
+        .filter((m) => m.conversationId === c.id)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+      return withMeta(c, {
+        userId,
+        otherUser: state.profiles.find((p) => p.id === otherId) ?? null,
+        listingTitle: listing?.title,
+        listingPhotoUrl: state.photos.find((p) => p.listingId === c.listingId)?.url ?? null,
+        lastMessageBody: last?.body ?? null,
+      });
+    });
+  },
+
+  async getConversation(conversationId: string, userId: string) {
+    const state = await load();
+    const c = state.conversations.find((x) => x.id === conversationId);
+    if (!c || (c.buyerId !== userId && c.sellerId !== userId)) return null;
+    const listing = state.listings.find((l) => l.id === c.listingId);
+    const otherId = otherParticipantId(c, userId);
+    const last = state.messages
+      .filter((m) => m.conversationId === c.id)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+    return withMeta(c, {
+      userId,
+      otherUser: state.profiles.find((p) => p.id === otherId) ?? null,
+      listingTitle: listing?.title,
+      listingPhotoUrl: state.photos.find((p) => p.listingId === c.listingId)?.url ?? null,
+      lastMessageBody: last?.body ?? null,
+    });
+  },
+
+  async getMessages(conversationId: string, userId: string) {
+    const state = await load();
+    const c = state.conversations.find((x) => x.id === conversationId);
+    if (!c || (c.buyerId !== userId && c.sellerId !== userId)) {
+      throw new Error('Conversația nu a fost găsită.');
+    }
+    return state.messages
+      .filter((m) => m.conversationId === conversationId)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  },
+
+  async sendMessage(conversationId: string, senderId: string, body: string) {
+    const state = await load();
+    const text = body.trim();
+    if (!text) throw new Error('Mesajul nu poate fi gol.');
+    const c = state.conversations.find((x) => x.id === conversationId);
+    if (!c || (c.buyerId !== senderId && c.sellerId !== senderId)) {
+      throw new Error('Nu poți trimite mesaje în această conversație.');
+    }
+    const now = new Date().toISOString();
+    const message: ChatMessage = {
+      id: createId('msg'),
+      conversationId,
+      senderId,
+      body: text.slice(0, 2000),
+      createdAt: now,
+    };
+    state.messages.push(message);
+    c.lastMessageAt = now;
+    await save();
+    return message;
+  },
+
+  async startConversation(params: {
+    listingId: string;
+    buyerId: string;
+    sellerId: string;
+    initialMessage?: string;
+  }) {
+    const state = await load();
+    if (params.buyerId === params.sellerId) {
+      throw new Error('Nu poți contacta propriul anunț.');
+    }
+    const listing = state.listings.find((l) => l.id === params.listingId);
+    if (!listing) throw new Error('Anunțul nu a fost găsit.');
+
+    let conversation = state.conversations.find(
+      (c) => c.listingId === params.listingId && c.buyerId === params.buyerId
+    );
+    const now = new Date().toISOString();
+    if (!conversation) {
+      conversation = {
+        id: createId('conv'),
+        listingId: params.listingId,
+        buyerId: params.buyerId,
+        sellerId: params.sellerId,
+        lastMessageAt: now,
+        createdAt: now,
+      };
+      state.conversations.unshift(conversation);
+    }
+
+    if (params.initialMessage?.trim()) {
+      await this.sendMessage(conversation.id, params.buyerId, params.initialMessage);
+    } else {
+      await save();
+    }
+
+    return (await this.getConversation(conversation.id, params.buyerId))!;
   },
 
   meta: {

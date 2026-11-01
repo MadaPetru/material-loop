@@ -2,7 +2,8 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Tabs, router } from 'expo-router';
 import { Platform, View, StyleSheet } from 'react-native';
 import { DesktopNav } from '@/components/layout/DesktopNav';
-import { LanguageHint } from '@/components/ui/LanguageHint';
+import { LanguageSelector } from '@/components/ui/LanguageSelector';
+import { useLocale } from '@/contexts/LocaleContext';
 import { colors, fonts } from '@/lib/theme';
 import { useResponsive } from '@/lib/useResponsive';
 
@@ -15,14 +16,15 @@ function TabIcon(props: {
 
 export default function TabLayout() {
   const { isDesktop, isTablet } = useResponsive();
+  const { t, locale } = useLocale();
   const hideTabBar = isDesktop;
 
   return (
-    <View style={styles.root}>
+    <View style={styles.root} key={locale}>
       {isDesktop ? <DesktopNav /> : null}
       {!isDesktop ? (
         <View style={styles.mobileLang}>
-          <LanguageHint />
+          <LanguageSelector />
         </View>
       ) : null}
       <Tabs
@@ -49,7 +51,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="index"
           options={{
-            title: 'Acasă',
+            title: t('nav.home'),
             href: '/',
             tabBarIcon: ({ color }) => <TabIcon name="home" color={String(color)} />,
             headerShown: false,
@@ -64,7 +66,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="search"
           options={{
-            title: 'Caută',
+            title: t('nav.search'),
             href: '/search',
             tabBarIcon: ({ color }) => <TabIcon name="search" color={String(color)} />,
           }}
@@ -78,7 +80,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="sell"
           options={{
-            title: 'Vinde',
+            title: t('nav.sell'),
             href: '/sell',
             tabBarIcon: ({ color }) => <TabIcon name="plus-circle" color={String(color)} />,
           }}
@@ -86,7 +88,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="favorites"
           options={{
-            title: 'Favorite',
+            title: t('nav.favorites'),
             href: '/favorites',
             tabBarIcon: ({ color }) => <TabIcon name="heart" color={String(color)} />,
           }}
@@ -94,15 +96,16 @@ export default function TabLayout() {
         <Tabs.Screen
           name="messages"
           options={{
-            title: 'Mesaje',
-            href: isDesktop ? null : '/messages',
+            title: t('nav.messages'),
+            href: '/messages',
+            headerShown: !isDesktop,
             tabBarIcon: ({ color }) => <TabIcon name="comments" color={String(color)} />,
           }}
         />
         <Tabs.Screen
           name="profile"
           options={{
-            title: 'Profil',
+            title: t('nav.profile'),
             href: '/profile',
             tabBarIcon: ({ color }) => <TabIcon name="user" color={String(color)} />,
           }}

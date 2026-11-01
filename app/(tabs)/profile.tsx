@@ -4,9 +4,10 @@ import { router } from 'expo-router';
 import { ListingCard } from '@/components/listings/ListingCard';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { LanguageHint } from '@/components/ui/LanguageHint';
+import { LanguageSelector } from '@/components/ui/LanguageSelector';
 import { formatCityCounty } from '@/data/romania';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLocale } from '@/contexts/LocaleContext';
 import { marketplace } from '@/lib/api/marketplace';
 import { colors, fonts, layout, radii, spacing } from '@/lib/theme';
 import { useResponsive } from '@/lib/useResponsive';
@@ -14,6 +15,7 @@ import type { ListingWithRelations } from '@/lib/types';
 
 export default function ProfileScreen() {
   const { user, signOut, isDemo } = useAuth();
+  const { t, locale } = useLocale();
   const { columns, contentPad, isDesktop } = useResponsive();
   const [listings, setListings] = useState<ListingWithRelations[]>([]);
   const [loading, setLoading] = useState(false);
@@ -39,13 +41,13 @@ export default function ProfileScreen() {
     return (
       <View style={styles.center}>
         <EmptyState
-          title="Cont MaterialLoop"
-          subtitle="Un singur cont pentru a cumpăra și a vinde materiale rămase."
-          actionLabel="Autentificare"
+          title={t('profile.gateTitle')}
+          subtitle={t('profile.gateSub')}
+          actionLabel={t('nav.login')}
           onAction={() => router.push('/(auth)/login')}
         />
         <Button
-          label="Creează cont"
+          label={t('profile.createAccount')}
           variant="secondary"
           onPress={() => router.push('/(auth)/register')}
           style={{ marginHorizontal: spacing.xl }}
@@ -58,7 +60,7 @@ export default function ProfileScreen() {
     <FlatList
       style={styles.root}
       data={listings}
-      key={columns}
+      key={`${columns}-${locale}`}
       numColumns={columns}
       keyExtractor={(item) => item.id}
       contentContainerStyle={[
@@ -71,55 +73,56 @@ export default function ProfileScreen() {
         <View style={styles.header}>
           <View style={styles.headerTop}>
             <Text style={styles.name}>{user.displayName}</Text>
-            {!isDesktop ? <LanguageHint /> : null}
+            {!isDesktop ? <LanguageSelector /> : null}
           </View>
           <Text style={styles.meta}>
-            {user.cityId ? formatCityCounty(user.cityId) : 'Locație nesetată'} ·{' '}
-            {user.accountType === 'business' ? 'Business' : 'Persoană fizică'}
+            {user.cityId ? formatCityCounty(user.cityId) : t('profile.locationUnset')} ·{' '}
+            {user.accountType === 'business' ? t('profile.business') : t('profile.individual')}
           </Text>
           {user.sellerRating != null ? (
             <Text style={styles.meta}>
-              Rating {user.sellerRating.toFixed(1)} ({user.ratingCount}) · {user.completedSales}{' '}
-              vânzări
+              {t('profile.ratingLine', {
+                rating: user.sellerRating.toFixed(1),
+                count: user.ratingCount,
+                sales: user.completedSales,
+              })}
             </Text>
           ) : (
-            <Text style={styles.meta}>Fără rating încă — completează profilul și publică anunțuri.</Text>
+            <Text style={styles.meta}>{t('profile.noRating')}</Text>
           )}
-          {isDemo ? (
-            <Text style={styles.demo}>Mod demo — datele rămân pe acest dispozitiv.</Text>
-          ) : null}
+          {isDemo ? <Text style={styles.demo}>{t('profile.demoNote')}</Text> : null}
           <View style={[styles.actions, isDesktop && styles.actionsRow]}>
             <Button
-              label="Editează profil"
+              label={t('profile.editProfile')}
               variant="secondary"
               onPress={() => router.push('/profile/edit')}
               style={isDesktop ? styles.actionFlex : undefined}
             />
             <Button
-              label="Publică anunț"
+              label={t('profile.publishListing')}
               onPress={() => router.push('/listing/create')}
               style={isDesktop ? styles.actionFlex : undefined}
             />
             <Button
-              label="Deconectare"
+              label={t('profile.signOut')}
               variant="ghost"
               onPress={() => signOut()}
               style={isDesktop ? styles.actionFlex : undefined}
             />
           </View>
           <Pressable onPress={() => router.push('/legal/terms')}>
-            <Text style={styles.legal}>Termeni · Siguranță materiale</Text>
+            <Text style={styles.legal}>{t('profile.legal')}</Text>
           </Pressable>
-          <Text style={styles.section}>Anunțurile mele</Text>
+          <Text style={styles.section}>{t('profile.myListings')}</Text>
           {loading ? <ActivityIndicator color={colors.brand} /> : null}
         </View>
       }
       ListEmptyComponent={
         !loading ? (
           <EmptyState
-            title="Nu ai anunțuri active"
-            subtitle="Publică primul material rămas — plătit sau gratuit."
-            actionLabel="Creează anunț"
+            title={t('profile.emptyListingsTitle')}
+            subtitle={t('profile.emptyListingsSub')}
+            actionLabel={t('profile.createListing')}
             onAction={() => router.push('/listing/create')}
           />
         ) : (

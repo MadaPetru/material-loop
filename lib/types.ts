@@ -149,6 +149,30 @@ export interface Favorite {
   createdAt: string;
 }
 
+export interface Conversation {
+  id: string;
+  listingId: string;
+  buyerId: string;
+  sellerId: string;
+  lastMessageAt: string;
+  createdAt: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  body: string;
+  createdAt: string;
+}
+
+export interface ConversationWithMeta extends Conversation {
+  listingTitle?: string;
+  listingPhotoUrl?: string | null;
+  otherUser?: Profile | null;
+  lastMessageBody?: string | null;
+}
+
 export interface SearchFilters {
   query?: string;
   categoryId?: string;

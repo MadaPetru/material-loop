@@ -5,6 +5,7 @@ import { ListingCard } from '@/components/listings/ListingCard';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLocale } from '@/contexts/LocaleContext';
 import { marketplace } from '@/lib/api/marketplace';
 import { colors, layout, spacing } from '@/lib/theme';
 import { useResponsive } from '@/lib/useResponsive';
@@ -12,6 +13,7 @@ import type { ListingWithRelations } from '@/lib/types';
 
 export default function FavoritesScreen() {
   const { user } = useAuth();
+  const { t, locale } = useLocale();
   const { columns, contentPad, isDesktop } = useResponsive();
   const [items, setItems] = useState<ListingWithRelations[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,9 +43,9 @@ export default function FavoritesScreen() {
     return (
       <View style={styles.center}>
         <EmptyState
-          title="Salvează anunțurile care te interesează"
-          subtitle="Autentifică-te pentru a vedea favoritele."
-          actionLabel="Autentificare"
+          title={t('favorites.gateTitle')}
+          subtitle={t('favorites.gateSub')}
+          actionLabel={t('nav.login')}
           onAction={() => router.push('/(auth)/login')}
         />
       </View>
@@ -58,7 +60,7 @@ export default function FavoritesScreen() {
     <FlatList
       style={styles.root}
       data={items}
-      key={columns}
+      key={`${columns}-${locale}`}
       numColumns={columns}
       keyExtractor={(item) => item.id}
       contentContainerStyle={[
@@ -69,9 +71,9 @@ export default function FavoritesScreen() {
       columnWrapperStyle={columns > 1 ? styles.row : undefined}
       ListEmptyComponent={
         <EmptyState
-          title="Nicio favorită încă"
-          subtitle="Atinge inima pe un anunț pentru a-l salva aici."
-          actionLabel="Caută materiale"
+          title={t('favorites.emptyTitle')}
+          subtitle={t('favorites.emptySub')}
+          actionLabel={t('favorites.findMaterials')}
           onAction={() => router.push('/search')}
         />
       }
@@ -83,7 +85,7 @@ export default function FavoritesScreen() {
       ListFooterComponent={
         items.length ? (
           <Button
-            label="Caută mai multe"
+            label={t('favorites.searchMore')}
             variant="secondary"
             onPress={() => router.push('/search')}
             style={{ marginTop: spacing.md }}

@@ -4,13 +4,16 @@ import { Pressable, StyleSheet, Text } from 'react-native';
 import { Button } from '@/components/ui/Button';
 import { ErrorBanner } from '@/components/ui/ErrorBanner';
 import { Input } from '@/components/ui/Input';
+import { LanguageSelector } from '@/components/ui/LanguageSelector';
 import { Screen } from '@/components/ui/Screen';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLocale } from '@/contexts/LocaleContext';
 import { colors, fonts, spacing } from '@/lib/theme';
-import { toUserError, USER_COPY } from '@/lib/userErrors';
+import { toUserError } from '@/lib/userErrors';
 
 export default function RegisterScreen() {
   const { signUp, signInWithGoogle, user, loading: authLoading } = useAuth();
+  const { t } = useLocale();
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -30,16 +33,16 @@ export default function RegisterScreen() {
 
   const validate = () => {
     const next: typeof fieldErrors = {};
-    if (!displayName.trim()) next.displayName = 'Introdu un nume afișat.';
-    if (!email.trim() || !email.includes('@')) next.email = 'Introdu un email valid.';
-    if (password.length < 6) next.password = 'Minim 6 caractere.';
+    if (!displayName.trim()) next.displayName = t('auth.nameRequired');
+    if (!email.trim() || !email.includes('@')) next.email = t('auth.emailInvalid');
+    if (password.length < 6) next.password = t('auth.passwordMin');
     setFieldErrors(next);
     return Object.keys(next).length === 0;
   };
 
   const onSubmit = async () => {
     if (!validate()) {
-      setError('Verifică câmpurile marcate.');
+      setError(t('auth.checkFields'));
       return;
     }
     setBusy(true);
@@ -48,7 +51,7 @@ export default function RegisterScreen() {
       await signUp(email.trim(), password, displayName.trim());
       router.replace('/profile');
     } catch (e) {
-      setError(toUserError(e, USER_COPY.unknown));
+      setError(toUserError(e));
     } finally {
       setBusy(false);
     }
@@ -62,7 +65,7 @@ export default function RegisterScreen() {
       const profile = await signInWithGoogle();
       if (profile) router.replace('/profile');
     } catch (e) {
-      setError(toUserError(e, USER_COPY.googleInterrupted));
+      setError(toUserError(e, t('errors.googleInterrupted')));
     } finally {
       setBusy(false);
     }
@@ -70,18 +73,19 @@ export default function RegisterScreen() {
 
   return (
     <Screen scroll narrow>
-      <Text style={styles.brand}>MaterialLoop</Text>
-      <Text style={styles.title}>Creează cont</Text>
-      <Text style={styles.sub}>Un singur cont pentru cumpărare și vânzare.</Text>
+      <LanguageSelector />
+      <Text style={styles.brand}>{t('common.brand')}</Text>
+      <Text style={styles.title}>{t('auth.registerTitle')}</Text>
+      <Text style={styles.sub}>{t('auth.registerSub')}</Text>
       <ErrorBanner message={error} />
       <Input
-        label="Nume afișat"
+        label={t('auth.displayName')}
         value={displayName}
         onChangeText={setDisplayName}
         error={fieldErrors.displayName}
       />
       <Input
-        label="Email"
+        label={t('auth.email')}
         autoCapitalize="none"
         keyboardType="email-address"
         value={email}
@@ -89,22 +93,26 @@ export default function RegisterScreen() {
         error={fieldErrors.email}
       />
       <Input
-        label="Parolă"
+        label={t('auth.password')}
         secureTextEntry
         value={password}
         onChangeText={setPassword}
         error={fieldErrors.password}
       />
-      <Button label={busy ? 'Se creează…' : 'Creează cont'} onPress={onSubmit} disabled={busy} />
       <Button
-        label={busy ? 'Se deschide Google…' : 'Continuă cu Google'}
+        label={busy ? t('auth.creating') : t('auth.createAccount')}
+        onPress={onSubmit}
+        disabled={busy}
+      />
+      <Button
+        label={busy ? t('auth.openingGoogle') : t('auth.continueGoogle')}
         variant="secondary"
         onPress={onGoogle}
         disabled={busy}
       />
       <Link href="/(auth)/login" asChild>
         <Pressable>
-          <Text style={styles.link}>Ai deja cont? Autentifică-te</Text>
+          <Text style={styles.link}>{t('auth.hasAccount')}</Text>
         </Pressable>
       </Link>
     </Screen>

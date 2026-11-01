@@ -7,7 +7,13 @@ import { createSessionFromUrl, getOAuthRedirectTo, oauthErrorMessage } from '@/l
 import { approximateCoords, daysFromNow, haversineKm } from '@/lib/geo';
 import { LISTING_EXPIRY_DAYS } from '@/lib/config';
 import { getSupabase } from '@/lib/supabase';
-import type { ListingDraft, ListingStatus, Profile, SearchFilters } from '@/lib/types';
+import type {
+  ConversationWithMeta,
+  ListingDraft,
+  ListingStatus,
+  Profile,
+  SearchFilters,
+} from '@/lib/types';
 import {
   enrichListing,
   mapListing,
@@ -18,6 +24,7 @@ import {
   type DbPhoto,
   type DbProfile,
 } from './mappers';
+import { mapConversationRow, mapMessageRow, otherParticipantId, withMeta } from './messaging-shared';
 
 function client() {
   const sb = getSupabase();
@@ -480,6 +487,163 @@ export const supabaseDb = {
     });
     if (error) throw new Error(error.message);
     return true;
+  },
+
+  async listConversations(userId: string): Promise<ConversationWithMeta[]> {
+    const { data, error } = await client()
+      .from('conversations')
+      .select('*')
+      .or(`buyer_id.eq.${userId},seller_id.eq.${userId}`)
+      .order('last_message_at', { ascending: false });
+    if (error) throw new Error(error.message);
+    const rows = data ?? [];
+    return Promise.all(
+      rows.map(async (row) => {
+        const conversation = mapConversationRow(row);
+        const otherId = otherParticipantId(conversation, userId);
+        const [{ data: listing }, { data: profile }, { data: lastMsg }, { data: photos }] =
+          await Promise.all([
+            client().from('listings').select('title').eq('id', conversation.listingId).maybeSingle(),
+            client().from('profiles').select('*').eq('id', otherId).maybeSingle(),
+            client()
+              .from('messages')
+              .select('body')
+              .eq('conversation_id', conversation.id)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle(),
+            client()
+              .from('listing_photos')
+              .select('url')
+              .eq('listing_id', conversation.listingId)
+              .order('sort_order', { ascending: true })
+              .limit(1),
+          ]);
+        return withMeta(conversation, {
+          userId,
+          otherUser: profile ? mapProfile(profile as DbProfile) : null,
+          listingTitle: listing?.title,
+          listingPhotoUrl: photos?.[0]?.url ?? null,
+          lastMessageBody: lastMsg?.body ?? null,
+        });
+      })
+    );
+  },
+
+  async getConversation(conversationId: string, userId: string) {
+    const { data, error } = await client()
+      .from('conversations')
+      .select('*')
+      .eq('id', conversationId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) return null;
+    const conversation = mapConversationRow(data);
+    if (conversation.buyerId !== userId && conversation.sellerId !== userId) return null;
+    const otherId = otherParticipantId(conversation, userId);
+    const [{ data: listing }, { data: profile }, { data: lastMsg }, { data: photos }] =
+      await Promise.all([
+        client().from('listings').select('title').eq('id', conversation.listingId).maybeSingle(),
+        client().from('profiles').select('*').eq('id', otherId).maybeSingle(),
+        client()
+          .from('messages')
+          .select('body')
+          .eq('conversation_id', conversation.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        client()
+          .from('listing_photos')
+          .select('url')
+          .eq('listing_id', conversation.listingId)
+          .order('sort_order', { ascending: true })
+          .limit(1),
+      ]);
+    return withMeta(conversation, {
+      userId,
+      otherUser: profile ? mapProfile(profile as DbProfile) : null,
+      listingTitle: listing?.title,
+      listingPhotoUrl: photos?.[0]?.url ?? null,
+      lastMessageBody: lastMsg?.body ?? null,
+    });
+  },
+
+  async getMessages(conversationId: string, userId: string) {
+    const conversation = await this.getConversation(conversationId, userId);
+    if (!conversation) throw new Error('Conversația nu a fost găsită.');
+    const { data, error } = await client()
+      .from('messages')
+      .select('*')
+      .eq('conversation_id', conversationId)
+      .order('created_at', { ascending: true });
+    if (error) throw new Error(error.message);
+    return (data ?? []).map(mapMessageRow);
+  },
+
+  async sendMessage(conversationId: string, senderId: string, body: string) {
+    const text = body.trim();
+    if (!text) throw new Error('Mesajul nu poate fi gol.');
+    const conversation = await this.getConversation(conversationId, senderId);
+    if (!conversation) throw new Error('Nu poți trimite mesaje în această conversație.');
+
+    const { data, error } = await client()
+      .from('messages')
+      .insert({
+        conversation_id: conversationId,
+        sender_id: senderId,
+        body: text.slice(0, 2000),
+      })
+      .select('*')
+      .single();
+    if (error) throw new Error(error.message);
+
+    await client()
+      .from('conversations')
+      .update({ last_message_at: new Date().toISOString() })
+      .eq('id', conversationId);
+
+    return mapMessageRow(data);
+  },
+
+  async startConversation(params: {
+    listingId: string;
+    buyerId: string;
+    sellerId: string;
+    initialMessage?: string;
+  }) {
+    if (params.buyerId === params.sellerId) {
+      throw new Error('Nu poți contacta propriul anunț.');
+    }
+
+    const { data: existing } = await client()
+      .from('conversations')
+      .select('*')
+      .eq('listing_id', params.listingId)
+      .eq('buyer_id', params.buyerId)
+      .maybeSingle();
+
+    let conversationId = existing?.id ?? null;
+    if (!conversationId) {
+      const { data, error } = await client()
+        .from('conversations')
+        .insert({
+          listing_id: params.listingId,
+          buyer_id: params.buyerId,
+          seller_id: params.sellerId,
+        })
+        .select('*')
+        .single();
+      if (error) throw new Error(error.message);
+      conversationId = data.id as string;
+    }
+
+    if (params.initialMessage?.trim()) {
+      await this.sendMessage(conversationId, params.buyerId, params.initialMessage);
+    }
+
+    const meta = await this.getConversation(conversationId, params.buyerId);
+    if (!meta) throw new Error('Conversația nu a putut fi deschisă.');
+    return meta;
   },
 
   async resetDemo() {

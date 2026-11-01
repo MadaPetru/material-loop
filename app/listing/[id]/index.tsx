@@ -14,6 +14,7 @@ import {
 import { Button } from '@/components/ui/Button';
 import { formatCityCounty } from '@/data/romania';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLocale } from '@/contexts/LocaleContext';
 import { marketplace } from '@/lib/api/marketplace';
 import { conditionLabels, formatPrice, formatQuantity, statusLabels } from '@/lib/labels';
 import { colors, fonts, radii, spacing } from '@/lib/theme';
@@ -22,6 +23,7 @@ import type { ListingWithRelations } from '@/lib/types';
 export default function ListingDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
+  const { t } = useLocale();
   const [listing, setListing] = useState<ListingWithRelations | null>(null);
   const [favorite, setFavorite] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -53,7 +55,7 @@ export default function ListingDetailScreen() {
   if (!listing) {
     return (
       <View style={styles.center}>
-        <Text style={styles.missing}>Anunțul nu a fost găsit.</Text>
+        <Text style={styles.missing}>{t('listing.missing')}</Text>
       </View>
     );
   }
@@ -72,7 +74,10 @@ export default function ListingDetailScreen() {
 
   const share = async () => {
     await Share.share({
-      message: `${listing.title} — ${formatPrice(listing.price, listing.currency, listing.isFree)} pe MaterialLoop`,
+      message: t('listing.shareMessage', {
+        title: listing.title,
+        price: formatPrice(listing.price, listing.currency, listing.isFree),
+      }),
     });
   };
 
@@ -81,7 +86,7 @@ export default function ListingDetailScreen() {
     await marketplace.setListingStatus(listing.id, user.id, status);
     const refreshed = await marketplace.getListing(listing.id);
     setListing(refreshed);
-    Alert.alert('Actualizat', `Status: ${statusLabels[status]}`);
+    Alert.alert(t('common.updated'), t('listing.status', { status: statusLabels[status] }));
   };
 
   return (
@@ -90,21 +95,21 @@ export default function ListingDetailScreen() {
         <Image source={{ uri: photo }} style={styles.hero} contentFit="cover" />
       ) : (
         <View style={[styles.hero, styles.heroEmpty]}>
-          <Text style={styles.heroEmptyText}>Fără fotografie</Text>
+          <Text style={styles.heroEmptyText}>{t('listing.noPhoto')}</Text>
         </View>
       )}
 
       <View style={styles.body}>
         <Text style={styles.price}>
           {formatPrice(listing.price, listing.currency, listing.isFree)}
-          {listing.isNegotiable ? ' · negociabil' : ''}
+          {listing.isNegotiable ? ` · ${t('listing.negotiable')}` : ''}
         </Text>
         <Text style={styles.title}>{listing.title}</Text>
         <Text style={styles.meta}>
           {formatQuantity(listing.quantity, listing.unit)} · {conditionLabels[listing.condition]}
         </Text>
         <Text style={styles.meta}>
-          {formatCityCounty(listing.cityId)} · locație aproximativă
+          {formatCityCounty(listing.cityId)} · {t('listing.approxLocation')}
         </Text>
         <Text style={styles.meta}>
           {listing.category?.name}
@@ -112,27 +117,26 @@ export default function ListingDetailScreen() {
           {listing.brand ? ` · ${listing.brand}` : ''}
           {listing.model ? ` ${listing.model}` : ''}
         </Text>
-        <Text style={styles.status}>Status: {statusLabels[listing.status]}</Text>
+        <Text style={styles.status}>
+          {t('listing.status', { status: statusLabels[listing.status] })}
+        </Text>
 
-        <Text style={styles.section}>Descriere</Text>
+        <Text style={styles.section}>{t('listing.description')}</Text>
         <Text style={styles.description}>{listing.description}</Text>
 
         {listing.storageNotes ? (
           <>
-            <Text style={styles.section}>Depozitare / siguranță</Text>
+            <Text style={styles.section}>{t('listing.storage')}</Text>
             <Text style={styles.description}>{listing.storageNotes}</Text>
           </>
         ) : null}
 
-        <Text style={styles.section}>Ridicare & livrare</Text>
+        <Text style={styles.section}>{t('listing.pickupDelivery')}</Text>
         <Text style={styles.description}>
-          {listing.pickupAvailable ? 'Ridicare disponibilă. ' : ''}
-          {listing.deliveryAvailable ? 'Livrare posibilă (detalii cu vânzătorul).' : 'Fără livrare.'}
+          {listing.pickupAvailable ? t('listing.pickupAvailable') : ''}
+          {listing.deliveryAvailable ? t('listing.deliveryPossible') : t('listing.noDelivery')}
         </Text>
-        <Text style={styles.disclaimer}>
-          Adresa exactă se comunică privat. MaterialLoop nu garantează starea materialelor și nu
-          intermediază plăți.
-        </Text>
+        <Text style={styles.disclaimer}>{t('listing.disclaimer')}</Text>
 
         {listing.seller ? (
           <Link href={`/u/${listing.seller.id}`} asChild>
@@ -140,8 +144,11 @@ export default function ListingDetailScreen() {
               <Text style={styles.sellerName}>{listing.seller.displayName}</Text>
               <Text style={styles.meta}>
                 {listing.seller.sellerRating != null
-                  ? `★ ${listing.seller.sellerRating.toFixed(1)} · ${listing.seller.completedSales} vânzări`
-                  : 'Vânzător nou'}
+                  ? t('listing.sellerRatingLine', {
+                      rating: listing.seller.sellerRating.toFixed(1),
+                      sales: listing.seller.completedSales,
+                    })
+                  : t('listing.newSeller')}
               </Text>
             </Pressable>
           </Link>
@@ -149,31 +156,60 @@ export default function ListingDetailScreen() {
 
         <View style={styles.actions}>
           <Button
-            label={favorite ? 'Elimină din favorite' : 'Adaugă la favorite'}
+            label={favorite ? t('listing.removeFavorite') : t('listing.addFavorite')}
             variant="secondary"
             onPress={toggleFavorite}
           />
-          <Button label="Distribuie" variant="secondary" onPress={share} />
+          <Button label={t('listing.share')} variant="secondary" onPress={share} />
           {!isOwner ? (
             <Button
-              label="Contactează vânzătorul"
-              onPress={() =>
-                Alert.alert(
-                  'În curând',
-                  'Mesageria vine în etapa următoare. Poți salva anunțul la favorite între timp.'
-                )
-              }
+              label={t('listing.contactSeller')}
+              onPress={async () => {
+                if (!user) {
+                  router.push('/(auth)/login');
+                  return;
+                }
+                try {
+                  const conversation = await marketplace.startConversation({
+                    listingId: listing.id,
+                    buyerId: user.id,
+                    sellerId: listing.sellerId,
+                    initialMessage: t('messages.contactStarter', { title: listing.title }),
+                  });
+                  router.push({
+                    pathname: '/(tabs)/messages',
+                    params: { conversationId: conversation.id },
+                  });
+                } catch (e) {
+                  Alert.alert(
+                    t('nav.messages'),
+                    e instanceof Error ? e.message : t('listing.contactFailed')
+                  );
+                }
+              }}
             />
           ) : (
             <>
-              <Button label="Editează" onPress={() => router.push(`/listing/${listing.id}/edit`)} />
-              <Button label="Marchează rezervat" variant="secondary" onPress={() => markStatus('reserved')} />
+              <Button label={t('listing.edit')} onPress={() => router.push(`/listing/${listing.id}/edit`)} />
               <Button
-                label={listing.isFree ? 'Marchează oferit' : 'Marchează vândut'}
+                label={t('listing.markReserved')}
+                variant="secondary"
+                onPress={() => markStatus('reserved')}
+              />
+              <Button
+                label={listing.isFree ? t('listing.markGiven') : t('listing.markSold')}
                 onPress={() => markStatus(listing.isFree ? 'given_away' : 'sold')}
               />
-              <Button label="Reactivează" variant="ghost" onPress={() => markStatus('active')} />
-              <Button label="Șterge anunț" variant="danger" onPress={() => markStatus('removed')} />
+              <Button
+                label={t('listing.reactivate')}
+                variant="ghost"
+                onPress={() => markStatus('active')}
+              />
+              <Button
+                label={t('listing.delete')}
+                variant="danger"
+                onPress={() => markStatus('removed')}
+              />
             </>
           )}
         </View>

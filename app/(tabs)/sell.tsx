@@ -3,29 +3,28 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Button } from '@/components/ui/Button';
 import { Screen } from '@/components/ui/Screen';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLocale } from '@/contexts/LocaleContext';
 import { colors, fonts, radii, spacing } from '@/lib/theme';
 import { useResponsive } from '@/lib/useResponsive';
 
 export default function SellTab() {
   const { user } = useAuth();
+  const { t } = useLocale();
   const { isDesktop } = useResponsive();
 
   return (
     <Screen>
       <View style={[styles.panel, isDesktop && styles.panelDesktop]}>
-        <Text style={styles.eyebrow}>Vânzare rapidă</Text>
-        <Text style={styles.brand}>MaterialLoop</Text>
-        <Text style={styles.title}>Publică un material rămas</Text>
-        <Text style={styles.sub}>
-          În câteva minute poți lista adeziv, plăci, izolație sau unelte — cu preț sau gratuit,
-          oriunde în România.
-        </Text>
+        <Text style={styles.eyebrow}>{t('sell.eyebrow')}</Text>
+        <Text style={styles.brand}>{t('common.brand')}</Text>
+        <Text style={styles.title}>{t('sell.title')}</Text>
+        <Text style={styles.sub}>{t('sell.sub')}</Text>
         <Button
-          label={user ? 'Creează anunț' : 'Autentifică-te pentru a vinde'}
+          label={user ? t('sell.create') : t('sell.loginToSell')}
           onPress={() => router.push(user ? '/listing/create' : '/(auth)/login')}
         />
         <Button
-          label="Vezi anunțurile mele"
+          label={t('sell.myListings')}
           variant="secondary"
           onPress={() => router.push('/(tabs)/profile')}
         />

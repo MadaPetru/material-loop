@@ -43,6 +43,18 @@ export const marketplace = {
   getFavorites: (userId: string) => api.getFavorites(userId),
   isFavorite: (userId: string, listingId: string) => api.isFavorite(userId, listingId),
   toggleFavorite: (userId: string, listingId: string) => api.toggleFavorite(userId, listingId),
+  listConversations: (userId: string) => api.listConversations(userId),
+  getConversation: (conversationId: string, userId: string) =>
+    api.getConversation(conversationId, userId),
+  getMessages: (conversationId: string, userId: string) => api.getMessages(conversationId, userId),
+  sendMessage: (conversationId: string, senderId: string, body: string) =>
+    api.sendMessage(conversationId, senderId, body),
+  startConversation: (params: {
+    listingId: string;
+    buyerId: string;
+    sellerId: string;
+    initialMessage?: string;
+  }) => api.startConversation(params),
   resetDemo: () => (IS_DEMO ? demoDb.reset() : supabaseDb.resetDemo()),
   meta: api.meta,
 };

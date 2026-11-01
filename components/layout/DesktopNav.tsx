@@ -1,28 +1,39 @@
 import { usePathname, router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { LanguageHint } from '@/components/ui/LanguageHint';
+import { LanguageSelector } from '@/components/ui/LanguageSelector';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLocale } from '@/contexts/LocaleContext';
 import { colors, fonts, radii, spacing } from '@/lib/theme';
-
-const LINKS = [
-  { href: '/', label: 'Acasă', match: (p: string) => p === '/' || p === '/index' },
-  { href: '/search', label: 'Caută', match: (p: string) => p.startsWith('/search') },
-  { href: '/sell', label: 'Vinde', match: (p: string) => p.startsWith('/sell') || p.startsWith('/listing/create') },
-  { href: '/favorites', label: 'Favorite', match: (p: string) => p.startsWith('/favorites') },
-  { href: '/profile', label: 'Profil', match: (p: string) => p.startsWith('/profile') || p.startsWith('/u/') },
-] as const;
 
 export function DesktopNav() {
   const pathname = usePathname();
   const { user } = useAuth();
+  const { t } = useLocale();
+
+  const links = [
+    { href: '/', label: t('nav.home'), match: (p: string) => p === '/' || p === '/index' },
+    { href: '/search', label: t('nav.search'), match: (p: string) => p.startsWith('/search') },
+    {
+      href: '/sell',
+      label: t('nav.sell'),
+      match: (p: string) => p.startsWith('/sell') || p.startsWith('/listing/create'),
+    },
+    { href: '/favorites', label: t('nav.favorites'), match: (p: string) => p.startsWith('/favorites') },
+    { href: '/messages', label: t('nav.messages'), match: (p: string) => p.startsWith('/messages') },
+    {
+      href: '/profile',
+      label: t('nav.profile'),
+      match: (p: string) => p.startsWith('/profile') || p.startsWith('/u/'),
+    },
+  ] as const;
 
   return (
     <View style={styles.bar}>
       <Pressable onPress={() => router.push('/')} accessibilityRole="link">
-        <Text style={styles.brand}>MaterialLoop</Text>
+        <Text style={styles.brand}>{t('common.brand')}</Text>
       </Pressable>
       <View style={styles.links}>
-        {LINKS.map((link) => {
+        {links.map((link) => {
           const active = link.match(pathname);
           return (
             <Pressable
@@ -37,14 +48,14 @@ export function DesktopNav() {
         })}
       </View>
       <View style={styles.right}>
-        <LanguageHint />
+        <LanguageSelector />
         {user ? (
           <Text style={styles.user} numberOfLines={1}>
             {user.displayName}
           </Text>
         ) : (
           <Pressable style={styles.loginBtn} onPress={() => router.push('/(auth)/login')}>
-            <Text style={styles.loginText}>Autentificare</Text>
+            <Text style={styles.loginText}>{t('nav.login')}</Text>
           </Pressable>
         )}
       </View>

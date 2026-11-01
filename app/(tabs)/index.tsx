@@ -12,14 +12,17 @@ import {
 import { ListingCard } from '@/components/listings/ListingCard';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { LanguageSelector } from '@/components/ui/LanguageSelector';
 import { marketplace } from '@/lib/api/marketplace';
 import { colors, fonts, layout, radii, spacing } from '@/lib/theme';
 import type { ListingWithRelations } from '@/lib/types';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLocale } from '@/contexts/LocaleContext';
 import { useResponsive } from '@/lib/useResponsive';
 
 export default function HomeScreen() {
   const { isDemo } = useAuth();
+  const { t, locale } = useLocale();
   const { columns, isDesktop, isTablet, contentPad } = useResponsive();
   const [items, setItems] = useState<ListingWithRelations[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,7 +47,7 @@ export default function HomeScreen() {
     <View style={styles.root}>
       <FlatList
         data={items}
-        key={columns}
+        key={`${columns}-${locale}`}
         numColumns={columns}
         keyExtractor={(item) => item.id}
         contentContainerStyle={[
@@ -67,16 +70,19 @@ export default function HomeScreen() {
             >
               <View style={styles.heroOrb} />
               <View style={styles.heroOrbSmall} />
-              <Text style={[styles.brand, isDesktop && styles.brandDesktop]}>MaterialLoop</Text>
+              {!isDesktop ? (
+                <View style={styles.langRow}>
+                  <LanguageSelector />
+                </View>
+              ) : null}
+              <Text style={[styles.brand, isDesktop && styles.brandDesktop]}>{t('common.brand')}</Text>
               <Text style={[styles.headline, isDesktop && styles.headlineDesktop]}>
-                Materialele rămase merită o a doua viață.
+                {t('home.headline')}
               </Text>
-              <Text style={[styles.sub, isDesktop && styles.subDesktop]}>
-                Cumpără, vinde sau oferă gratuit surplusul de construcții — în toată România.
-              </Text>
+              <Text style={[styles.sub, isDesktop && styles.subDesktop]}>{t('home.sub')}</Text>
               <View style={styles.ctaRow}>
                 <Button
-                  label="Explorează anunțuri"
+                  label={t('home.explore')}
                   variant="accent"
                   onPress={() => router.push('/search')}
                 />
@@ -85,24 +91,21 @@ export default function HomeScreen() {
                   style={styles.ctaGhost}
                   onPress={() => router.push('/sell')}
                 >
-                  <Text style={styles.ctaGhostText}>Publică material</Text>
+                  <Text style={styles.ctaGhostText}>{t('home.publish')}</Text>
                 </Pressable>
               </View>
             </LinearGradient>
 
             {isDemo ? (
               <View style={[styles.demoBanner, { marginHorizontal: contentPad }]}>
-                <Text style={styles.demoText}>
-                  Mod demonstrație local — datele rămân pe acest dispozitiv. Cont:
-                  demo@materialloop.ro / demo1234
-                </Text>
+                <Text style={styles.demoText}>{t('home.demoBanner')}</Text>
               </View>
             ) : null}
 
             <View style={[styles.sectionHead, { paddingHorizontal: contentPad }]}>
-              <Text style={styles.sectionTitle}>Anunțuri recente</Text>
+              <Text style={styles.sectionTitle}>{t('home.recent')}</Text>
               <Link href="/search" style={styles.link}>
-                Vezi toate
+                {t('home.seeAll')}
               </Link>
             </View>
           </View>
@@ -112,9 +115,9 @@ export default function HomeScreen() {
             <ActivityIndicator color={colors.brand} style={{ marginTop: 40 }} />
           ) : (
             <EmptyState
-              title="Încă nu sunt anunțuri"
-              subtitle="Fii primul care publică materiale rămase în zona ta."
-              actionLabel="Publică acum"
+              title={t('home.emptyTitle')}
+              subtitle={t('home.emptySub')}
+              actionLabel={t('home.emptyAction')}
               onAction={() => router.push('/sell')}
             />
           )
@@ -174,6 +177,7 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     backgroundColor: 'rgba(184,90,42,0.25)',
   },
+  langRow: { alignSelf: 'flex-start', marginBottom: spacing.md },
   brand: {
     fontFamily: fonts.displayBold,
     fontSize: 36,
