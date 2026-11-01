@@ -1,87 +1,85 @@
 import { Link, router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Button } from '@/components/ui/Button';
+import { ErrorBanner } from '@/components/ui/ErrorBanner';
 import { Input } from '@/components/ui/Input';
+import { Screen } from '@/components/ui/Screen';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors, fonts, spacing } from '@/lib/theme';
+import { toUserError, USER_COPY } from '@/lib/userErrors';
 
 export default function LoginScreen() {
-  const { signIn, signInWithGoogle, user, loading: authLoading, isDemo } = useAuth();
+  const { signIn, signInWithGoogle, isDemo } = useAuth();
   const [email, setEmail] = useState(isDemo ? 'demo@materialloop.ro' : '');
   const [password, setPassword] = useState(isDemo ? 'demo1234' : '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // After Google web OAuth redirect (PKCE), session lands here → go to profile.
-  useEffect(() => {
-    if (!authLoading && user) {
-      router.replace('/profile');
-    }
-  }, [authLoading, user]);
-
   const onSubmit = async () => {
     if (busy) return;
+    if (!email.trim() || !password) {
+      setError('Completează emailul și parola.');
+      return;
+    }
     setError(null);
     setBusy(true);
     try {
       await signIn(email.trim(), password.trim());
       router.replace('/profile');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Eroare necunoscută');
+      setError(toUserError(e, USER_COPY.unknown));
     } finally {
       setBusy(false);
     }
   };
 
   const onGoogle = async () => {
-    if (busy) return;
     setError(null);
     setBusy(true);
     try {
       const profile = await signInWithGoogle();
-      if (profile) {
-        router.replace('/profile');
-      }
-      // Web: browser navigates away; on return the useEffect above redirects.
+      if (profile) router.replace('/profile');
     } catch (e) {
-      setError(
-        e instanceof Error
-          ? e.message
-          : 'Autentificarea Google a eșuat. Verifică configurația din Supabase (vezi README).'
-      );
+      setError(toUserError(e, USER_COPY.googleInterrupted));
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <View style={styles.root}>
+    <Screen scroll narrow>
       <Text style={styles.brand}>MaterialLoop</Text>
       <Text style={styles.title}>Intră în cont</Text>
       {isDemo ? (
         <Text style={styles.hint}>Demo: demo@materialloop.ro / demo1234</Text>
       ) : null}
+      <ErrorBanner message={error} />
       <Input
         label="Email"
         autoCapitalize="none"
         keyboardType="email-address"
         autoComplete="email"
         value={email}
-        onChangeText={setEmail}
+        onChangeText={(v) => {
+          setEmail(v);
+          setError(null);
+        }}
       />
       <Input
         label="Parolă"
         secureTextEntry
         autoComplete="password"
         value={password}
-        onChangeText={setPassword}
+        onChangeText={(v) => {
+          setPassword(v);
+          setError(null);
+        }}
         onSubmitEditing={onSubmit}
       />
-      {error ? <Text style={styles.error}>{error}</Text> : null}
       <Button label={busy ? 'Se conectează…' : 'Autentificare'} onPress={onSubmit} disabled={busy} />
       <Button
-        label={busy ? 'Se conectează…' : 'Continuă cu Google'}
+        label={busy ? 'Se deschide Google…' : 'Continuă cu Google'}
         variant="secondary"
         onPress={onGoogle}
         disabled={busy}
@@ -96,28 +94,14 @@ export default function LoginScreen() {
           <Text style={styles.link}>Nu ai cont? Înregistrează-te</Text>
         </Pressable>
       </Link>
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: colors.bg,
-    padding: spacing.xl,
-    gap: spacing.md,
-  },
-  brand: { fontFamily: fonts.displayBold, fontSize: 24, color: colors.brand },
-  title: { fontFamily: fonts.display, fontSize: 28, color: colors.ink, marginBottom: spacing.sm },
-  hint: { fontFamily: fonts.sans, color: colors.inkMuted, fontSize: 13, marginTop: -spacing.sm },
-  error: {
-    fontFamily: fonts.sansMedium,
-    color: colors.danger,
-    fontSize: 14,
-    backgroundColor: colors.dangerSoft,
-    padding: spacing.md,
-    borderRadius: 8,
-  },
+  brand: { fontFamily: fonts.displayBold, fontSize: 26, color: colors.brand },
+  title: { fontFamily: fonts.display, fontSize: 28, color: colors.ink, marginBottom: spacing.xs },
+  hint: { fontFamily: fonts.sans, color: colors.inkMuted, fontSize: 13 },
   link: {
     fontFamily: fonts.sansMedium,
     color: colors.brand,

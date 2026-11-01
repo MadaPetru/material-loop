@@ -144,7 +144,7 @@ export const demoDb = {
     const state = await load();
     const profile = state.profiles.find((p) => p.email.toLowerCase() === email.toLowerCase());
     if (!profile || state.passwords[email.toLowerCase()] !== password) {
-      throw new Error('Email sau parolă incorrectă.');
+      throw new Error('Email sau parolă greșită. Verifică datele sau resetează parola.');
     }
     if (profile.deactivatedAt) throw new Error('Contul este dezactivat.');
     state.sessionUserId = profile.id;

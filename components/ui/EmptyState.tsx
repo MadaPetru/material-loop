@@ -15,9 +15,12 @@ export function EmptyState({
 }) {
   return (
     <View style={styles.wrap}>
+      <View style={styles.mark} />
       <Text style={styles.title}>{title}</Text>
       {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
-      {actionLabel && onAction ? <Button label={actionLabel} onPress={onAction} style={{ marginTop: spacing.lg }} /> : null}
+      {actionLabel && onAction ? (
+        <Button label={actionLabel} onPress={onAction} style={{ marginTop: spacing.lg }} />
+      ) : null}
     </View>
   );
 }
@@ -27,6 +30,13 @@ const styles = StyleSheet.create({
     padding: spacing.xxl,
     alignItems: 'center',
     gap: spacing.sm,
+  },
+  mark: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.brand,
+    marginBottom: spacing.sm,
   },
   title: {
     fontFamily: fonts.display,
@@ -40,6 +50,6 @@ const styles = StyleSheet.create({
     color: colors.inkMuted,
     textAlign: 'center',
     lineHeight: 22,
-    maxWidth: 320,
+    maxWidth: 340,
   },
 });

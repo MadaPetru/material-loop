@@ -171,9 +171,13 @@ export const supabaseDb = {
 
   async signIn(email: string, password: string) {
     const { data, error } = await client().auth.signInWithPassword({ email, password });
-    if (error) throw new Error(error.message === 'Invalid login credentials'
-      ? 'Email sau parolă incorrectă.'
-      : error.message);
+    if (error) {
+      throw new Error(
+        error.message === 'Invalid login credentials'
+          ? 'Email sau parolă greșită. Verifică datele sau resetează parola.'
+          : error.message
+      );
+    }
     if (!data.user) throw new Error('Autentificare eșuată.');
     const profile = await profileFromAuthUser(data.user);
     if (profile.deactivatedAt) {

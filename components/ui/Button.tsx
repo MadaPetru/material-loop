@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, type ViewStyle } from 'react-native';
 import { colors, fonts, radii, spacing } from '@/lib/theme';
 
-type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
+type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'accent';
 
 export function Button({
   label,
@@ -9,13 +9,16 @@ export function Button({
   variant = 'primary',
   disabled,
   style,
+  compact,
 }: {
   label: string;
   onPress?: () => void;
   variant?: Variant;
   disabled?: boolean;
   style?: ViewStyle;
+  compact?: boolean;
 }) {
+  const darkLabel = variant === 'secondary' || variant === 'ghost';
   return (
     <Pressable
       accessibilityRole="button"
@@ -24,15 +27,14 @@ export function Button({
       onPress={disabled ? undefined : onPress}
       style={({ pressed }) => [
         styles.base,
+        compact && styles.compact,
         styles[variant],
         pressed && !disabled && styles.pressed,
         disabled && styles.disabled,
         style,
       ]}
     >
-      <Text style={[styles.label, variant === 'secondary' || variant === 'ghost' ? styles.labelDark : null]}>
-        {label}
-      </Text>
+      <Text style={[styles.label, darkLabel && styles.labelDark]}>{label}</Text>
     </Pressable>
   );
 }
@@ -45,7 +47,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  compact: {
+    minHeight: 40,
+    paddingHorizontal: spacing.lg,
+  },
   primary: { backgroundColor: colors.brand },
+  accent: { backgroundColor: colors.accent },
   secondary: {
     backgroundColor: colors.bgElevated,
     borderWidth: 1,
@@ -58,7 +65,7 @@ const styles = StyleSheet.create({
   label: {
     fontFamily: fonts.sansBold,
     color: colors.white,
-    fontSize: 16,
+    fontSize: 15,
   },
   labelDark: { color: colors.ink },
 });

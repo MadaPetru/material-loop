@@ -2,24 +2,26 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { LocationPicker } from '@/components/LocationPicker';
 import { ListingCard } from '@/components/listings/ListingCard';
+import { Chip } from '@/components/ui/Chip';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Input } from '@/components/ui/Input';
+import { Button } from '@/components/ui/Button';
 import { CATEGORIES } from '@/data/categories';
 import { getCity } from '@/data/romania';
 import { marketplace } from '@/lib/api/marketplace';
 import { radiusOptions } from '@/lib/labels';
-import { colors, fonts, radii, spacing } from '@/lib/theme';
+import { colors, fonts, layout, radii, spacing } from '@/lib/theme';
+import { useResponsive } from '@/lib/useResponsive';
 import type { ListingWithRelations, SearchFilters } from '@/lib/types';
 
 export default function SearchScreen() {
+  const { columns, isDesktop, contentPad } = useResponsive();
   const [query, setQuery] = useState('');
   const [countyId, setCountyId] = useState<string | null>(null);
   const [cityId, setCityId] = useState<string | null>(null);
@@ -81,7 +83,13 @@ export default function SearchScreen() {
 
   return (
     <View style={styles.root}>
-      <View style={styles.top}>
+      <View
+        style={[
+          styles.top,
+          isDesktop && styles.topDesktop,
+          { paddingHorizontal: contentPad },
+        ]}
+      >
         <Input
           placeholder="Caută materiale, brand, descriere..."
           value={query}
@@ -90,59 +98,46 @@ export default function SearchScreen() {
           returnKeyType="search"
         />
         <View style={styles.actions}>
-          <Pressable
-            accessibilityRole="button"
-            style={styles.filterBtn}
+          <Button
+            label={showFilters ? 'Ascunde filtre' : 'Filtre'}
+            variant="secondary"
+            compact
             onPress={() => setShowFilters((v) => !v)}
-          >
-            <Text style={styles.filterBtnText}>{showFilters ? 'Ascunde filtre' : 'Filtre'}</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" style={styles.searchBtn} onPress={runSearch}>
-            <Text style={styles.searchBtnText}>Caută</Text>
-          </Pressable>
+            style={{ flex: 1 }}
+          />
+          <Button label="Caută" compact onPress={runSearch} style={{ flex: 1 }} />
         </View>
 
         {showFilters ? (
-          <ScrollView
-            style={styles.filtersScroll}
-            contentContainerStyle={styles.filters}
-            nestedScrollEnabled
-            keyboardShouldPersistTaps="handled"
-          >
+          <View style={[styles.filters, isDesktop && styles.filtersDesktop]}>
             <Text style={styles.label}>Categorie</Text>
             <View style={styles.wrapRow}>
               {categoryOptions.map((item) => (
-                <Pressable
+                <Chip
                   key={item.id ?? 'all'}
+                  label={item.name}
+                  selected={categoryId === item.id}
                   onPress={() => setCategoryId(item.id)}
-                  style={[styles.chip, categoryId === item.id && styles.chipActive]}
-                >
-                  <Text style={[styles.chipText, categoryId === item.id && styles.chipTextActive]}>
-                    {item.name}
-                  </Text>
-                </Pressable>
+                />
               ))}
             </View>
 
-            <Pressable
+            <Chip
+              label="Doar gratuite"
+              selected={freeOnly}
               onPress={() => setFreeOnly((v) => !v)}
-              style={[styles.chip, freeOnly && styles.chipActive, { alignSelf: 'flex-start' }]}
-            >
-              <Text style={[styles.chipText, freeOnly && styles.chipTextActive]}>Doar gratuite</Text>
-            </Pressable>
+              style={{ alignSelf: 'flex-start' }}
+            />
 
             <Text style={styles.label}>Rază</Text>
             <View style={styles.wrapRow}>
               {radiusOptions.map((opt) => (
-                <Pressable
+                <Chip
                   key={String(opt.value)}
+                  label={opt.label}
+                  selected={radiusKm === opt.value}
                   onPress={() => setRadiusKm(opt.value)}
-                  style={[styles.chip, radiusKm === opt.value && styles.chipActive]}
-                >
-                  <Text style={[styles.chipText, radiusKm === opt.value && styles.chipTextActive]}>
-                    {opt.label}
-                  </Text>
-                </Pressable>
+                />
               ))}
             </View>
 
@@ -154,10 +149,10 @@ export default function SearchScreen() {
                 setCityId(city);
               }}
             />
-          </ScrollView>
+          </View>
         ) : null}
 
-        <Text style={styles.count}>{loading ? 'Se caută…' : `${total} anunțuri`}</Text>
+        <Text style={styles.count}>{loading ? 'Se caută…' : `${total} anunțuri găsite`}</Text>
       </View>
 
       {loading && items.length === 0 ? (
@@ -165,16 +160,27 @@ export default function SearchScreen() {
       ) : (
         <FlatList
           data={items}
+          key={columns}
+          numColumns={columns}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg, paddingBottom: 48 }}
+          contentContainerStyle={[
+            styles.list,
+            { paddingHorizontal: contentPad },
+            isDesktop && { maxWidth: layout.contentMax, alignSelf: 'center', width: '100%' },
+          ]}
+          columnWrapperStyle={columns > 1 ? styles.row : undefined}
           keyboardShouldPersistTaps="handled"
           ListEmptyComponent={
             <EmptyState
               title="Niciun rezultat"
-              subtitle="Încearcă altă localitate, rază mai mare sau „Toată țara”."
+              subtitle="Încearcă altă localitate, o rază mai mare sau „Toată țara”."
             />
           }
-          renderItem={({ item }) => <ListingCard listing={item} />}
+          renderItem={({ item }) => (
+            <View style={[columns > 1 ? styles.cardFlex : null]}>
+              <ListingCard listing={item} />
+            </View>
+          )}
         />
       )}
     </View>
@@ -184,47 +190,32 @@ export default function SearchScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   top: {
-    padding: spacing.lg,
+    paddingVertical: spacing.lg,
     gap: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.line,
     backgroundColor: colors.bgElevated,
-    maxHeight: '55%',
+  },
+  topDesktop: {
+    maxWidth: layout.contentMax,
+    width: '100%',
+    alignSelf: 'center',
+    borderBottomLeftRadius: radii.lg,
+    borderBottomRightRadius: radii.lg,
+    marginTop: spacing.md,
   },
   actions: { flexDirection: 'row', gap: spacing.sm },
-  filterBtn: {
-    flex: 1,
-    minHeight: 44,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.line,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  filterBtnText: { fontFamily: fonts.sansMedium, color: colors.ink },
-  searchBtn: {
-    flex: 1,
-    minHeight: 44,
-    borderRadius: radii.md,
-    backgroundColor: colors.brand,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  searchBtnText: { fontFamily: fonts.sansBold, color: colors.white },
-  filtersScroll: { flexGrow: 0 },
   filters: { gap: spacing.sm, paddingBottom: spacing.sm },
-  label: { fontFamily: fonts.sansMedium, color: colors.inkMuted, fontSize: 13, marginTop: spacing.xs },
-  wrapRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  chip: {
-    borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.bg,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: radii.xl,
+  filtersDesktop: { maxHeight: 280 },
+  label: {
+    fontFamily: fonts.sansMedium,
+    color: colors.inkMuted,
+    fontSize: 13,
+    marginTop: spacing.xs,
   },
-  chipActive: { backgroundColor: colors.brandSoft, borderColor: colors.brand },
-  chipText: { fontFamily: fonts.sansMedium, color: colors.ink, fontSize: 13 },
-  chipTextActive: { color: colors.brandDark },
+  wrapRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   count: { fontFamily: fonts.sans, color: colors.inkMuted, fontSize: 13 },
+  list: { paddingVertical: spacing.lg, gap: spacing.lg, paddingBottom: 48 },
+  row: { gap: spacing.lg },
+  cardFlex: { flex: 1 },
 });

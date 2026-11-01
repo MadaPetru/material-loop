@@ -8,21 +8,21 @@ import {
   StyleSheet,
   Text,
   View,
-  useWindowDimensions,
 } from 'react-native';
 import { ListingCard } from '@/components/listings/ListingCard';
+import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { marketplace } from '@/lib/api/marketplace';
-import { colors, fonts, radii, spacing } from '@/lib/theme';
+import { colors, fonts, layout, radii, spacing } from '@/lib/theme';
 import type { ListingWithRelations } from '@/lib/types';
 import { useAuth } from '@/contexts/AuthContext';
+import { useResponsive } from '@/lib/useResponsive';
 
 export default function HomeScreen() {
   const { isDemo } = useAuth();
-  const { width } = useWindowDimensions();
+  const { columns, isDesktop, isTablet, contentPad } = useResponsive();
   const [items, setItems] = useState<ListingWithRelations[]>([]);
   const [loading, setLoading] = useState(true);
-  const columns = width >= 900 ? 3 : width >= 640 ? 2 : 1;
 
   useEffect(() => {
     let active = true;
@@ -47,42 +47,59 @@ export default function HomeScreen() {
         key={columns}
         numColumns={columns}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
-        columnWrapperStyle={columns > 1 ? styles.row : undefined}
+        contentContainerStyle={[
+          styles.list,
+          isDesktop && { maxWidth: layout.contentMax, alignSelf: 'center', width: '100%' },
+        ]}
+        columnWrapperStyle={columns > 1 ? [styles.row, { paddingHorizontal: contentPad }] : undefined}
         ListHeaderComponent={
           <View>
             <LinearGradient
-              colors={['#2F5D3A', '#1F3F28', '#3D4A32']}
+              colors={[colors.heroFrom, colors.heroVia, colors.heroTo]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={styles.hero}
+              style={[
+                styles.hero,
+                isDesktop && styles.heroDesktop,
+                isTablet && !isDesktop && styles.heroTablet,
+                { paddingHorizontal: contentPad },
+              ]}
             >
-              <View style={styles.heroPattern} />
-              <Text style={styles.brand}>MaterialLoop</Text>
-              <Text style={styles.headline}>Materialele rămase merită o a doua viață.</Text>
-              <Text style={styles.sub}>
+              <View style={styles.heroOrb} />
+              <View style={styles.heroOrbSmall} />
+              <Text style={[styles.brand, isDesktop && styles.brandDesktop]}>MaterialLoop</Text>
+              <Text style={[styles.headline, isDesktop && styles.headlineDesktop]}>
+                Materialele rămase merită o a doua viață.
+              </Text>
+              <Text style={[styles.sub, isDesktop && styles.subDesktop]}>
                 Cumpără, vinde sau oferă gratuit surplusul de construcții — în toată România.
               </Text>
               <View style={styles.ctaRow}>
-                <Pressable style={styles.ctaPrimary} onPress={() => router.push('/search')}>
-                  <Text style={styles.ctaPrimaryText}>Explorează anunțuri</Text>
-                </Pressable>
-                <Pressable style={styles.ctaSecondary} onPress={() => router.push('/sell')}>
-                  <Text style={styles.ctaSecondaryText}>Publică material</Text>
+                <Button
+                  label="Explorează anunțuri"
+                  variant="accent"
+                  onPress={() => router.push('/search')}
+                />
+                <Pressable
+                  accessibilityRole="button"
+                  style={styles.ctaGhost}
+                  onPress={() => router.push('/sell')}
+                >
+                  <Text style={styles.ctaGhostText}>Publică material</Text>
                 </Pressable>
               </View>
             </LinearGradient>
 
             {isDemo ? (
-              <View style={styles.demoBanner}>
+              <View style={[styles.demoBanner, { marginHorizontal: contentPad }]}>
                 <Text style={styles.demoText}>
-                  Mod demonstrație local — conectează Supabase când ești gata (vezi README). Cont:
+                  Mod demonstrație local — datele rămân pe acest dispozitiv. Cont:
                   demo@materialloop.ro / demo1234
                 </Text>
               </View>
             ) : null}
 
-            <View style={styles.sectionHead}>
+            <View style={[styles.sectionHead, { paddingHorizontal: contentPad }]}>
               <Text style={styles.sectionTitle}>Anunțuri recente</Text>
               <Link href="/search" style={styles.link}>
                 Vezi toate
@@ -103,7 +120,13 @@ export default function HomeScreen() {
           )
         }
         renderItem={({ item }) => (
-          <View style={[styles.cardWrap, columns > 1 ? styles.cardFlex : null]}>
+          <View
+            style={[
+              styles.cardWrap,
+              { paddingHorizontal: columns === 1 ? contentPad : 0 },
+              columns > 1 ? styles.cardFlex : null,
+            ]}
+          >
             <ListingCard listing={item} />
           </View>
         )}
@@ -115,64 +138,80 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   list: { paddingBottom: spacing.xxxl, gap: spacing.lg },
-  row: { gap: spacing.lg, paddingHorizontal: spacing.lg },
+  row: { gap: spacing.lg },
   hero: {
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.xxxl + 12,
+    paddingTop: spacing.xxxl + 20,
     paddingBottom: spacing.xxl,
-    minHeight: 420,
+    minHeight: 380,
     justifyContent: 'flex-end',
     overflow: 'hidden',
+    borderBottomLeftRadius: radii.xl,
+    borderBottomRightRadius: radii.xl,
   },
-  heroPattern: {
+  heroTablet: { minHeight: 340 },
+  heroDesktop: {
+    minHeight: 420,
+    marginTop: spacing.lg,
+    marginHorizontal: spacing.xxl,
+    borderRadius: radii.xl,
+    paddingTop: spacing.xxxl,
+  },
+  heroOrb: {
     position: 'absolute',
-    right: -40,
-    top: -20,
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    right: -50,
+    top: -30,
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+  },
+  heroOrbSmall: {
+    position: 'absolute',
+    right: 80,
+    bottom: 40,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(184,90,42,0.25)',
   },
   brand: {
     fontFamily: fonts.displayBold,
-    fontSize: 42,
+    fontSize: 36,
     color: colors.white,
     marginBottom: spacing.md,
   },
+  brandDesktop: { fontSize: 48 },
   headline: {
     fontFamily: fonts.display,
-    fontSize: 26,
-    lineHeight: 34,
+    fontSize: 24,
+    lineHeight: 32,
     color: colors.white,
-    maxWidth: 420,
+    maxWidth: 440,
     marginBottom: spacing.sm,
   },
+  headlineDesktop: { fontSize: 32, lineHeight: 40, maxWidth: 560 },
   sub: {
     fontFamily: fonts.sans,
-    fontSize: 16,
-    lineHeight: 24,
-    color: 'rgba(255,255,255,0.86)',
+    fontSize: 15,
+    lineHeight: 23,
+    color: 'rgba(255,255,255,0.88)',
     maxWidth: 440,
     marginBottom: spacing.xl,
   },
-  ctaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
-  ctaPrimary: {
-    backgroundColor: colors.accent,
+  subDesktop: { fontSize: 17, lineHeight: 26, maxWidth: 520 },
+  ctaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, alignItems: 'center' },
+  ctaGhost: {
+    minHeight: 48,
     paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.md,
     borderRadius: radii.md,
-  },
-  ctaPrimaryText: { fontFamily: fonts.sansBold, color: colors.white, fontSize: 15 },
-  ctaSecondary: {
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.45)',
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.md,
-    borderRadius: radii.md,
+    borderColor: 'rgba(255,255,255,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  ctaSecondaryText: { fontFamily: fonts.sansBold, color: colors.white, fontSize: 15 },
+  ctaGhostText: { fontFamily: fonts.sansBold, color: colors.white, fontSize: 15 },
   demoBanner: {
-    margin: spacing.lg,
+    marginTop: spacing.lg,
     padding: spacing.lg,
     backgroundColor: colors.accentSoft,
     borderRadius: radii.md,
@@ -181,8 +220,7 @@ const styles = StyleSheet.create({
   },
   demoText: { fontFamily: fonts.sans, color: colors.ink, fontSize: 13, lineHeight: 20 },
   sectionHead: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
+    paddingTop: spacing.xl,
     paddingBottom: spacing.sm,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -190,6 +228,6 @@ const styles = StyleSheet.create({
   },
   sectionTitle: { fontFamily: fonts.display, fontSize: 22, color: colors.ink },
   link: { fontFamily: fonts.sansMedium, color: colors.brand, fontSize: 14 },
-  cardWrap: { paddingHorizontal: spacing.lg },
+  cardWrap: {},
   cardFlex: { flex: 1 },
 });

@@ -44,6 +44,9 @@ export function formatPrice(price: number, currency = 'RON', isFree = false) {
   return `${price.toLocaleString('ro-RO')} ${currency}`;
 }
 
+/** Prefer friendly Romanian labels; keep for call sites that still import typos. */
+export const incorrectCredentials = 'Email sau parolă greșită. Verifică datele sau resetează parola.';
+
 export function formatQuantity(quantity: number, unit: MeasurementUnit) {
   const q = Number.isInteger(quantity) ? String(quantity) : quantity.toFixed(2).replace(/\.?0+$/, '');
   return `${q} ${unitLabels[unit]}`;
