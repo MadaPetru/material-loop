@@ -124,14 +124,18 @@ export default function CreateListingScreen() {
   }
 
   const pickPhotos = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsMultipleSelection: true,
-      quality: 0.8,
-      selectionLimit: MAX_PHOTOS - photos.length,
-    });
-    if (!result.canceled) {
-      setPhotos((prev) => [...prev, ...result.assets.map((a) => a.uri)].slice(0, MAX_PHOTOS));
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsMultipleSelection: true,
+        quality: 0.8,
+        selectionLimit: MAX_PHOTOS - photos.length,
+      });
+      if (!result.canceled) {
+        setPhotos((prev) => [...prev, ...result.assets.map((a) => a.uri)].slice(0, MAX_PHOTOS));
+      }
+    } catch (e) {
+      setError(toUserError(e));
     }
   };
 
