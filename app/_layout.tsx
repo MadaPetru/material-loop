@@ -14,6 +14,7 @@ import { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 import { AuthProvider } from '@/contexts/AuthContext';
+import '@/lib/auth/oauth';
 import { colors } from '@/lib/theme';
 
 export { ErrorBoundary } from 'expo-router';

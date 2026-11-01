@@ -1,0 +1,546 @@
+import { Platform } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
+import type { User } from '@supabase/supabase-js';
+import { CATEGORIES, SUBCATEGORIES } from '@/data/categories';
+import { COUNTRY_RO, COUNTIES, CITIES, getCity } from '@/data/romania';
+import { createSessionFromUrl, getOAuthRedirectTo, oauthErrorMessage } from '@/lib/auth/oauth';
+import { approximateCoords, daysFromNow, haversineKm } from '@/lib/geo';
+import { LISTING_EXPIRY_DAYS } from '@/lib/config';
+import { getSupabase } from '@/lib/supabase';
+import type { ListingDraft, ListingStatus, Profile, SearchFilters } from '@/lib/types';
+import {
+  enrichListing,
+  mapListing,
+  mapPhoto,
+  mapProfile,
+  toEwkt,
+  type DbListing,
+  type DbPhoto,
+  type DbProfile,
+} from './mappers';
+
+function client() {
+  const sb = getSupabase();
+  if (!sb) throw new Error('Supabase nu este configurat.');
+  return sb;
+}
+
+function displayNameFromUser(user: User) {
+  const meta = user.user_metadata ?? {};
+  return (
+    meta.display_name ||
+    meta.full_name ||
+    meta.name ||
+    user.email?.split('@')[0] ||
+    'Utilizator'
+  );
+}
+
+function avatarFromUser(user: User): string | null {
+  const meta = user.user_metadata ?? {};
+  return meta.avatar_url || meta.picture || null;
+}
+
+async function fetchProfile(userId: string): Promise<Profile | null> {
+  const { data, error } = await client().from('profiles').select('*').eq('id', userId).maybeSingle();
+  if (error) throw new Error(error.message);
+  return data ? mapProfile(data as DbProfile) : null;
+}
+
+async function ensureProfile(userId: string, email: string, displayName?: string, avatarUrl?: string | null): Promise<Profile> {
+  const existing = await fetchProfile(userId);
+  if (existing) {
+    const patch: Record<string, unknown> = {};
+    if (!existing.avatarUrl && avatarUrl) patch.avatar_url = avatarUrl;
+    // Upgrade placeholder names (email local-part) when Google provides a real name.
+    if (
+      displayName &&
+      displayName !== existing.displayName &&
+      (!existing.displayName || existing.displayName === (email.split('@')[0] || ''))
+    ) {
+      patch.display_name = displayName;
+    }
+    if (Object.keys(patch).length) {
+      const { data, error } = await client()
+        .from('profiles')
+        .update(patch)
+        .eq('id', userId)
+        .select('*')
+        .single();
+      if (error) throw new Error(error.message);
+      return mapProfile(data as DbProfile);
+    }
+    return existing;
+  }
+
+  const city = getCity('bh-oradea');
+  const row = {
+    id: userId,
+    email,
+    display_name: displayName || email.split('@')[0] || 'Utilizator',
+    avatar_url: avatarUrl ?? null,
+    account_type: 'individual',
+    role: 'user',
+    city_id: city?.id ?? null,
+    phone: null,
+    bio: null,
+    location: city ? toEwkt(city.lat, city.lng) : null,
+    seller_rating: null,
+    rating_count: 0,
+    completed_sales: 0,
+  };
+
+  const { data, error } = await client().from('profiles').insert(row).select('*').single();
+  if (error) throw new Error(error.message);
+  return mapProfile(data as DbProfile);
+}
+
+async function profileFromAuthUser(user: User) {
+  return ensureProfile(
+    user.id,
+    user.email ?? '',
+    displayNameFromUser(user),
+    avatarFromUser(user)
+  );
+}
+
+async function photosForListings(listingIds: string[]) {
+  if (!listingIds.length) return [] as DbPhoto[];
+  const { data, error } = await client()
+    .from('listing_photos')
+    .select('*')
+    .in('listing_id', listingIds)
+    .order('sort_order', { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as DbPhoto[];
+}
+
+async function profilesByIds(ids: string[]) {
+  const unique = [...new Set(ids.filter(Boolean))];
+  if (!unique.length) return new Map<string, Profile>();
+  const { data, error } = await client().from('profiles').select('*').in('id', unique);
+  if (error) throw new Error(error.message);
+  const map = new Map<string, Profile>();
+  for (const row of (data ?? []) as DbProfile[]) {
+    map.set(row.id, mapProfile(row));
+  }
+  return map;
+}
+
+async function enrichMany(rows: DbListing[], center?: { lat: number; lng: number }) {
+  const photos = await photosForListings(rows.map((r) => r.id));
+  const sellers = await profilesByIds(rows.map((r) => r.seller_id));
+  const byListing = new Map<string, ReturnType<typeof mapPhoto>[]>();
+  for (const p of photos) {
+    const list = byListing.get(p.listing_id) ?? [];
+    list.push(mapPhoto(p));
+    byListing.set(p.listing_id, list);
+  }
+  return rows.map((row) => {
+    const listing = mapListing(row);
+    return enrichListing(listing, byListing.get(row.id) ?? [], sellers.get(row.seller_id), center);
+  });
+}
+
+export const supabaseDb = {
+  async getSession() {
+    const { data, error } = await client().auth.getSession();
+    if (error) throw new Error(error.message);
+    const user = data.session?.user;
+    if (!user) return null;
+    return profileFromAuthUser(user);
+  },
+
+  async signUp(email: string, password: string, displayName: string) {
+    const { data, error } = await client().auth.signUp({
+      email,
+      password,
+      options: { data: { display_name: displayName } },
+    });
+    if (error) throw new Error(error.message);
+    if (!data.user) throw new Error('Nu s-a putut crea contul.');
+    // Email confirmation may leave session null — still create profile when session exists.
+    if (data.session) {
+      return ensureProfile(data.user.id, email, displayName, avatarFromUser(data.user));
+    }
+    // Profile insert requires auth.uid(); create after first confirmed sign-in.
+    throw new Error(
+      'Cont creat. Verifică emailul pentru confirmare, apoi autentifică-te.'
+    );
+  },
+
+  async signIn(email: string, password: string) {
+    const { data, error } = await client().auth.signInWithPassword({ email, password });
+    if (error) throw new Error(error.message === 'Invalid login credentials'
+      ? 'Email sau parolă incorrectă.'
+      : error.message);
+    if (!data.user) throw new Error('Autentificare eșuată.');
+    const profile = await profileFromAuthUser(data.user);
+    if (profile.deactivatedAt) {
+      await client().auth.signOut();
+      throw new Error('Contul este dezactivat.');
+    }
+    return profile;
+  },
+
+  async signOut() {
+    const { error } = await client().auth.signOut();
+    if (error) throw new Error(error.message);
+  },
+
+  async updateProfile(userId: string, patch: Partial<Profile>) {
+    const update: Record<string, unknown> = {};
+    if (patch.displayName !== undefined) update.display_name = patch.displayName;
+    if (patch.avatarUrl !== undefined) update.avatar_url = patch.avatarUrl;
+    if (patch.accountType !== undefined) update.account_type = patch.accountType;
+    if (patch.cityId !== undefined) update.city_id = patch.cityId;
+    if (patch.phone !== undefined) update.phone = patch.phone;
+    if (patch.bio !== undefined) update.bio = patch.bio;
+    if (patch.lat != null && patch.lng != null) {
+      update.location = toEwkt(patch.lat, patch.lng);
+    } else if (patch.cityId) {
+      const city = getCity(patch.cityId);
+      if (city) update.location = toEwkt(city.lat, city.lng);
+    }
+
+    const { data, error } = await client()
+      .from('profiles')
+      .update(update)
+      .eq('id', userId)
+      .select('*')
+      .single();
+    if (error) throw new Error(error.message);
+    return mapProfile(data as DbProfile);
+  },
+
+  async getProfile(userId: string) {
+    return fetchProfile(userId);
+  },
+
+  async search(filters: SearchFilters = {}) {
+    const page = filters.page ?? 1;
+    const pageSize = filters.pageSize ?? 20;
+
+    let query = client().from('listings').select('*').eq('status', 'active');
+
+    if (filters.categoryId) query = query.eq('category_id', filters.categoryId);
+    if (filters.subcategoryId) query = query.eq('subcategory_id', filters.subcategoryId);
+    if (filters.cityId) query = query.eq('city_id', filters.cityId);
+    if (filters.freeOnly) query = query.eq('is_free', true);
+    if (filters.negotiableOnly) query = query.eq('is_negotiable', true);
+    if (filters.condition) query = query.eq('condition', filters.condition);
+    if (filters.pickupAvailable) query = query.eq('pickup_available', true);
+    if (filters.deliveryAvailable) query = query.eq('delivery_available', true);
+    if (filters.minPrice != null) query = query.gte('price', filters.minPrice);
+    if (filters.maxPrice != null) query = query.lte('price', filters.maxPrice);
+    if (filters.newOnly) query = query.in('condition', ['new_unopened', 'new_opened']);
+    if (filters.usedOnly) query = query.in('condition', ['partially_used', 'used_reclaimed']);
+    if (filters.query) {
+      const q = filters.query.replace(/%/g, '').trim();
+      if (q) query = query.or(`title.ilike.%${q}%,description.ilike.%${q}%,brand.ilike.%${q}%`);
+    }
+
+    const { data, error } = await query.order('published_at', { ascending: false }).limit(500);
+    if (error) throw new Error(error.message);
+
+    let rows = (data ?? []) as DbListing[];
+
+    if (filters.countyId) {
+      rows = rows.filter((r) => getCity(r.city_id)?.countyId === filters.countyId);
+    }
+
+    const center =
+      filters.centerLat != null && filters.centerLng != null
+        ? { lat: filters.centerLat, lng: filters.centerLng }
+        : filters.cityId
+          ? (() => {
+              const c = getCity(filters.cityId!);
+              return c ? { lat: c.lat, lng: c.lng } : null;
+            })()
+          : null;
+
+    let enriched = await enrichMany(rows, center ?? undefined);
+
+    if (!filters.countryWide && filters.radiusKm != null && center) {
+      enriched = enriched.filter(
+        (l) => haversineKm(center.lat, center.lng, l.lat, l.lng) <= filters.radiusKm!
+      );
+    }
+
+    const sort = filters.sort ?? 'newest';
+    enriched.sort((a, b) => {
+      if (sort === 'price_asc') return a.price - b.price;
+      if (sort === 'price_desc') return b.price - a.price;
+      if (sort === 'nearest') return (a.distanceKm ?? 1e9) - (b.distanceKm ?? 1e9);
+      return (b.publishedAt ?? '').localeCompare(a.publishedAt ?? '');
+    });
+
+    const start = (page - 1) * pageSize;
+    return {
+      items: enriched.slice(start, start + pageSize),
+      total: enriched.length,
+      page,
+      pageSize,
+    };
+  },
+
+  async getListing(id: string, center?: { lat: number; lng: number }) {
+    const { data, error } = await client().from('listings').select('*').eq('id', id).maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) return null;
+    const [item] = await enrichMany([data as DbListing], center);
+    return item ?? null;
+  },
+
+  async listingsForSeller(sellerId: string) {
+    const { data, error } = await client()
+      .from('listings')
+      .select('*')
+      .eq('seller_id', sellerId)
+      .neq('status', 'removed')
+      .order('updated_at', { ascending: false });
+    if (error) throw new Error(error.message);
+    return enrichMany((data ?? []) as DbListing[]);
+  },
+
+  async createListing(sellerId: string, draft: ListingDraft) {
+    const now = new Date().toISOString();
+    const city = getCity(draft.cityId);
+    const approx = approximateCoords(draft.lat || city?.lat || 45.9, draft.lng || city?.lng || 24.9);
+    const row = {
+      seller_id: sellerId,
+      title: draft.title,
+      description: draft.description,
+      category_id: draft.categoryId,
+      subcategory_id: draft.subcategoryId,
+      brand: draft.brand,
+      model: draft.model,
+      condition: draft.condition,
+      quantity: draft.quantity,
+      unit: draft.unit,
+      original_package_quantity: draft.originalPackageQuantity,
+      price: draft.isFree ? 0 : draft.price,
+      currency: draft.currency || 'RON',
+      is_negotiable: draft.isFree ? false : draft.isNegotiable,
+      is_free: draft.isFree,
+      city_id: draft.cityId,
+      country_id: draft.countryId || 'ro',
+      location: toEwkt(approx.lat, approx.lng),
+      pickup_available: draft.pickupAvailable,
+      delivery_available: draft.deliveryAvailable,
+      storage_notes: draft.storageNotes,
+      status: draft.status,
+      published_at: draft.status === 'active' ? now : null,
+      expires_at: draft.status === 'active' ? daysFromNow(LISTING_EXPIRY_DAYS) : null,
+    };
+
+    const { data, error } = await client().from('listings').insert(row).select('*').single();
+    if (error) throw new Error(error.message);
+    const listing = data as DbListing;
+
+    if (draft.photoUrls.length) {
+      const photos = draft.photoUrls.map((url, i) => ({
+        listing_id: listing.id,
+        url,
+        sort_order: i,
+      }));
+      const { error: photoError } = await client().from('listing_photos').insert(photos);
+      if (photoError) throw new Error(photoError.message);
+    }
+
+    const [enriched] = await enrichMany([listing]);
+    return enriched;
+  },
+
+  async updateListing(listingId: string, sellerId: string, patch: Partial<ListingDraft>) {
+    const current = await this.getListing(listingId);
+    if (!current || current.sellerId !== sellerId) throw new Error('Anunțul nu a fost găsit.');
+
+    const now = new Date().toISOString();
+    const nextStatus = patch.status ?? current.status;
+    const isFree = patch.isFree ?? current.isFree;
+    const update: Record<string, unknown> = { updated_at: now };
+
+    if (patch.title !== undefined) update.title = patch.title;
+    if (patch.description !== undefined) update.description = patch.description;
+    if (patch.categoryId !== undefined) update.category_id = patch.categoryId;
+    if (patch.subcategoryId !== undefined) update.subcategory_id = patch.subcategoryId;
+    if (patch.brand !== undefined) update.brand = patch.brand;
+    if (patch.model !== undefined) update.model = patch.model;
+    if (patch.condition !== undefined) update.condition = patch.condition;
+    if (patch.quantity !== undefined) update.quantity = patch.quantity;
+    if (patch.unit !== undefined) update.unit = patch.unit;
+    if (patch.originalPackageQuantity !== undefined) {
+      update.original_package_quantity = patch.originalPackageQuantity;
+    }
+    if (patch.price !== undefined || patch.isFree !== undefined) {
+      update.price = isFree ? 0 : (patch.price ?? current.price);
+    }
+    if (patch.currency !== undefined) update.currency = patch.currency;
+    if (patch.isNegotiable !== undefined || patch.isFree !== undefined) {
+      update.is_negotiable = isFree ? false : (patch.isNegotiable ?? current.isNegotiable);
+    }
+    if (patch.isFree !== undefined) update.is_free = patch.isFree;
+    if (patch.cityId !== undefined) update.city_id = patch.cityId;
+    if (patch.countryId !== undefined) update.country_id = patch.countryId;
+    if (patch.pickupAvailable !== undefined) update.pickup_available = patch.pickupAvailable;
+    if (patch.deliveryAvailable !== undefined) update.delivery_available = patch.deliveryAvailable;
+    if (patch.storageNotes !== undefined) update.storage_notes = patch.storageNotes;
+    if (patch.status !== undefined) update.status = patch.status;
+    if (patch.lat != null && patch.lng != null) {
+      const approx = approximateCoords(patch.lat, patch.lng);
+      update.location = toEwkt(approx.lat, approx.lng);
+    }
+
+    if (nextStatus === 'active' && !current.publishedAt) {
+      update.published_at = now;
+      update.expires_at = daysFromNow(LISTING_EXPIRY_DAYS);
+    }
+
+    const { data, error } = await client()
+      .from('listings')
+      .update(update)
+      .eq('id', listingId)
+      .eq('seller_id', sellerId)
+      .select('*')
+      .single();
+    if (error) throw new Error(error.message);
+
+    if (patch.photoUrls) {
+      await client().from('listing_photos').delete().eq('listing_id', listingId);
+      if (patch.photoUrls.length) {
+        const photos = patch.photoUrls.map((url, i) => ({
+          listing_id: listingId,
+          url,
+          sort_order: i,
+        }));
+        const { error: photoError } = await client().from('listing_photos').insert(photos);
+        if (photoError) throw new Error(photoError.message);
+      }
+    }
+
+    const [enriched] = await enrichMany([data as DbListing]);
+    return enriched;
+  },
+
+  async setListingStatus(listingId: string, sellerId: string, status: ListingStatus) {
+    return this.updateListing(listingId, sellerId, { status } as Partial<ListingDraft>);
+  },
+
+  async deleteListing(listingId: string, sellerId: string) {
+    return this.setListingStatus(listingId, sellerId, 'removed');
+  },
+
+  async getFavorites(userId: string) {
+    const { data, error } = await client()
+      .from('favorites')
+      .select('listing_id')
+      .eq('user_id', userId);
+    if (error) throw new Error(error.message);
+    const ids = (data ?? []).map((r: { listing_id: string }) => r.listing_id);
+    if (!ids.length) return [];
+    const { data: listings, error: listError } = await client()
+      .from('listings')
+      .select('*')
+      .in('id', ids)
+      .neq('status', 'removed');
+    if (listError) throw new Error(listError.message);
+    return enrichMany((listings ?? []) as DbListing[]);
+  },
+
+  async isFavorite(userId: string, listingId: string) {
+    const { data, error } = await client()
+      .from('favorites')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('listing_id', listingId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return !!data;
+  },
+
+  async toggleFavorite(userId: string, listingId: string) {
+    const exists = await this.isFavorite(userId, listingId);
+    if (exists) {
+      const { error } = await client()
+        .from('favorites')
+        .delete()
+        .eq('user_id', userId)
+        .eq('listing_id', listingId);
+      if (error) throw new Error(error.message);
+      return false;
+    }
+    const { error } = await client().from('favorites').insert({
+      user_id: userId,
+      listing_id: listingId,
+    });
+    if (error) throw new Error(error.message);
+    return true;
+  },
+
+  async resetDemo() {
+    throw new Error('Reset demo nu este disponibil pe Supabase.');
+  },
+
+  async signInWithGoogle(): Promise<Profile | null> {
+    const sb = client();
+    const redirectTo = getOAuthRedirectTo();
+
+    if (Platform.OS === 'web') {
+      const { data, error } = await sb.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo,
+          skipBrowserRedirect: false,
+          queryParams: { prompt: 'select_account' },
+        },
+      });
+      if (error) throw new Error(oauthErrorMessage(error.message));
+      if (!data.url) {
+        throw new Error('Nu s-a putut porni autentificarea Google.');
+      }
+      // Full-page redirect; session is restored on return via detectSessionInUrl + PKCE.
+      return null;
+    }
+
+    const { data, error } = await sb.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo,
+        skipBrowserRedirect: true,
+        queryParams: { prompt: 'select_account' },
+      },
+    });
+    if (error) throw new Error(oauthErrorMessage(error.message));
+    if (!data.url) {
+      throw new Error('Nu s-a putut porni autentificarea Google.');
+    }
+
+    const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+    if (result.type === 'cancel' || result.type === 'dismiss') {
+      throw new Error('Autentificarea Google a fost anulată.');
+    }
+    if (result.type !== 'success' || !('url' in result) || !result.url) {
+      throw new Error('Autentificarea Google a eșuat.');
+    }
+
+    await createSessionFromUrl(result.url);
+    const profile = await this.getSession();
+    if (!profile) {
+      throw new Error('Sesiunea Google nu a putut fi creată.');
+    }
+    if (profile.deactivatedAt) {
+      await sb.auth.signOut();
+      throw new Error('Contul este dezactivat.');
+    }
+    return profile;
+  },
+
+  meta: {
+    country: COUNTRY_RO,
+    counties: COUNTIES,
+    cities: CITIES,
+    categories: CATEGORIES,
+    subcategories: SUBCATEGORIES,
+  },
+};

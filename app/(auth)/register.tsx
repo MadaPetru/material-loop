@@ -1,5 +1,5 @@
 import { Link, router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -7,11 +7,17 @@ import { useAuth } from '@/contexts/AuthContext';
 import { colors, fonts, spacing } from '@/lib/theme';
 
 export default function RegisterScreen() {
-  const { signUp } = useAuth();
+  const { signUp, signInWithGoogle, user, loading: authLoading } = useAuth();
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      router.replace('/profile');
+    }
+  }, [authLoading, user]);
 
   const onSubmit = async () => {
     if (!displayName.trim() || !email.trim() || password.length < 6) {
@@ -24,6 +30,24 @@ export default function RegisterScreen() {
       router.replace('/profile');
     } catch (e) {
       Alert.alert('Înregistrare eșuată', e instanceof Error ? e.message : 'Eroare');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onGoogle = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const profile = await signInWithGoogle();
+      if (profile) {
+        router.replace('/profile');
+      }
+    } catch (e) {
+      Alert.alert(
+        'Google',
+        e instanceof Error ? e.message : 'Autentificarea Google a eșuat.'
+      );
     } finally {
       setBusy(false);
     }
@@ -44,6 +68,12 @@ export default function RegisterScreen() {
       />
       <Input label="Parolă" secureTextEntry value={password} onChangeText={setPassword} />
       <Button label={busy ? 'Se creează…' : 'Creează cont'} onPress={onSubmit} disabled={busy} />
+      <Button
+        label={busy ? 'Se conectează…' : 'Continuă cu Google'}
+        variant="secondary"
+        onPress={onGoogle}
+        disabled={busy}
+      />
       <Link href="/(auth)/login" asChild>
         <Pressable>
           <Text style={styles.link}>Ai deja cont? Autentifică-te</Text>

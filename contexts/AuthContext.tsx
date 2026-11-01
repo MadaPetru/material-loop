@@ -1,5 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { marketplace } from '@/lib/api/marketplace';
+import { getSupabase } from '@/lib/supabase';
+import { IS_DEMO } from '@/lib/config';
 import type { Profile } from '@/lib/types';
 
 type AuthContextValue = {
@@ -9,6 +11,8 @@ type AuthContextValue = {
   refresh: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, displayName: string) => Promise<void>;
+  /** Returns null on web while the browser redirects to Google. */
+  signInWithGoogle: () => Promise<Profile | null>;
   signOut: () => Promise<void>;
   updateProfile: (patch: Partial<Profile>) => Promise<void>;
 };
@@ -25,7 +29,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    refresh().finally(() => setLoading(false));
+    let mounted = true;
+    refresh()
+      .catch(() => {
+        if (mounted) setUser(null);
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+
+    if (IS_DEMO) {
+      return () => {
+        mounted = false;
+      };
+    }
+
+    const sb = getSupabase();
+    if (!sb) {
+      return () => {
+        mounted = false;
+      };
+    }
+
+    const { data: sub } = sb.auth.onAuthStateChange(async (event) => {
+      if (!mounted) return;
+      if (event === 'SIGNED_OUT') {
+        setUser(null);
+        return;
+      }
+      try {
+        const session = await marketplace.getSession();
+        if (mounted) setUser(session);
+      } catch {
+        if (mounted) setUser(null);
+      }
+    });
+
+    return () => {
+      mounted = false;
+      sub.subscription.unsubscribe();
+    };
   }, [refresh]);
 
   const value = useMemo<AuthContextValue>(
@@ -41,6 +84,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signUp: async (email, password, displayName) => {
         const profile = await marketplace.signUp(email, password, displayName);
         setUser(profile);
+      },
+      signInWithGoogle: async () => {
+        const profile = await marketplace.signInWithGoogle();
+        if (profile) setUser(profile);
+        return profile;
       },
       signOut: async () => {
         await marketplace.signOut();

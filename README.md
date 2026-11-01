@@ -30,17 +30,29 @@ Fără variabile Supabase, aplicația pornește în **mod demonstrație** (date 
 
 Cont demo: `demo@materialloop.ro` / `demo1234`
 
-## Conectare Supabase (când ești gata)
+## Conectare Supabase
 
-1. Creează un proiect pe [supabase.com](https://supabase.com).
-2. Rulează SQL din [`supabase/migrations/001_init.sql`](supabase/migrations/001_init.sql) (și seed-ul de categorii/județe din app — sau importă din `data/`).
+1. Creează un proiect pe [supabase.com](https://supabase.com) (sau folosește cel legat).
+2. Aplică migrările: `npx supabase link --project-ref <ref>` apoi `npx supabase db push --linked`.
 3. Copiază URL + anon key în `.env`:
 
 ```bash
 cp .env.example .env
 ```
 
-4. Reactivează aplicația. Clientul Supabase se leagă prin `EXPO_PUBLIC_SUPABASE_*`.
+4. Reactivează aplicația. Cu `EXPO_PUBLIC_SUPABASE_*` setate, Auth + anunțuri folosesc cloud-ul (nu demo local).
+
+## Deploy web (Vercel)
+
+Supabase găzduiește Auth/DB; UI-ul Expo web se publică pe Vercel.
+
+1. În Vercel → Project → Settings → Environment Variables, setează:
+   - `EXPO_PUBLIC_SUPABASE_URL`
+   - `EXPO_PUBLIC_SUPABASE_ANON_KEY`
+2. Deploy: `npx vercel --prod` (sau conectează repo-ul în dashboard).
+3. În Supabase → Authentication → URL Configuration, adaugă URL-ul Vercel la Site URL / Redirect URLs (`https://your-app.vercel.app/**`).
+
+Build local: `npm run export:web` → folder `dist/`.
 
 ---
 
@@ -92,13 +104,25 @@ După ce le configurezi în Supabase, spune-mi doar: „Google e activ în Supab
    - Client Secret = cel din pasul 3  
    Salvează.
 
-5. **Redirect URL-uri în Supabase**  
-   Authentication → URL Configuration  
-   - Site URL: `http://127.0.0.1:43127` (dev) / domeniul tău (prod)  
-   - Redirect URLs: `http://127.0.0.1:43127/**`, `materialloop://**`, URL-ul de producție
+5. **Redirect URL-uri în Supabase** (obligatoriu pentru butonul din app)  
+   Dashboard proiect `aiimxsgmhtxhjgnlfvgm` → **Authentication** → **URL Configuration**  
+   - **Site URL** (dev): `http://127.0.0.1:43127` · (prod): `https://material-loop.vercel.app` (sau domeniul real)  
+   - **Redirect URLs** (adaugă toate):
+     - `http://127.0.0.1:43127/**`
+     - `http://localhost:43127/**`
+     - `https://material-loop.vercel.app/**`
+     - `https://materialloop.vercel.app/**`
+     - `materialloop://**`
+     - `exp://**` (doar pentru teste în Expo Go)
+
+   App-ul trimite `redirectTo`:
+   - Web: `{origin}/login` (ex. `http://127.0.0.1:43127/login`)
+   - Native (build): `materialloop://login`
+   - Expo Go: URI `exp://…/--/login` generat de `makeRedirectUri`
 
 6. **(Opțional, pentru iOS/Android store)**  
    Creează și clienți OAuth **iOS** / **Android** în Google Cloud, cu bundle id / package name din `app.json`, apoi configurează-le în Expo / Supabase conform [docs Supabase Google](https://supabase.com/docs/guides/auth/social-login/auth-google).
+   Flow-ul actual din app folosește **browser OAuth** (`signInWithOAuth` + `expo-web-browser`), nu SDK-ul nativ Google — Client ID **Web** din Supabase este suficient pentru web + native deep link.
 
 ### Când să faci asta
 
@@ -118,7 +142,7 @@ app/                 # ecrane Expo Router (web + mobil)
 components/          # UI + listing cards
 contexts/            # Auth
 data/                # categorii + geo România
-lib/api/             # marketplace API (demo acum; Supabase mai târziu)
+lib/api/             # marketplace API (demo local sau Supabase)
 supabase/migrations/ # SQL
 ```
 

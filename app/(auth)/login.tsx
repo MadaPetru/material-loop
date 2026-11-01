@@ -1,18 +1,24 @@
 import { Link, router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { useAuth } from '@/contexts/AuthContext';
-import { marketplace } from '@/lib/api/marketplace';
 import { colors, fonts, spacing } from '@/lib/theme';
 
 export default function LoginScreen() {
-  const { signIn, isDemo } = useAuth();
+  const { signIn, signInWithGoogle, user, loading: authLoading, isDemo } = useAuth();
   const [email, setEmail] = useState(isDemo ? 'demo@materialloop.ro' : '');
   const [password, setPassword] = useState(isDemo ? 'demo1234' : '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // After Google web OAuth redirect (PKCE), session lands here → go to profile.
+  useEffect(() => {
+    if (!authLoading && user) {
+      router.replace('/profile');
+    }
+  }, [authLoading, user]);
 
   const onSubmit = async () => {
     if (busy) return;
@@ -29,15 +35,23 @@ export default function LoginScreen() {
   };
 
   const onGoogle = async () => {
+    if (busy) return;
     setError(null);
+    setBusy(true);
     try {
-      await marketplace.signInWithGoogle();
+      const profile = await signInWithGoogle();
+      if (profile) {
+        router.replace('/profile');
+      }
+      // Web: browser navigates away; on return the useEffect above redirects.
     } catch (e) {
       setError(
         e instanceof Error
           ? e.message
-          : 'Configurează credențialele Google în Supabase (vezi README).'
+          : 'Autentificarea Google a eșuat. Verifică configurația din Supabase (vezi README).'
       );
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -66,7 +80,12 @@ export default function LoginScreen() {
       />
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <Button label={busy ? 'Se conectează…' : 'Autentificare'} onPress={onSubmit} disabled={busy} />
-      <Button label="Continuă cu Google" variant="secondary" onPress={onGoogle} disabled={busy} />
+      <Button
+        label={busy ? 'Se conectează…' : 'Continuă cu Google'}
+        variant="secondary"
+        onPress={onGoogle}
+        disabled={busy}
+      />
       <Link href="/(auth)/forgot-password" asChild>
         <Pressable>
           <Text style={styles.link}>Ai uitat parola?</Text>

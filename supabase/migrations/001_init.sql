@@ -126,22 +126,32 @@ alter table listings enable row level security;
 alter table listing_photos enable row level security;
 alter table favorites enable row level security;
 
+drop policy if exists "Public profiles are readable" on profiles;
 create policy "Public profiles are readable" on profiles for select using (deactivated_at is null);
+drop policy if exists "Users update own profile" on profiles;
 create policy "Users update own profile" on profiles for update using (auth.uid() = id);
+drop policy if exists "Users insert own profile" on profiles;
 create policy "Users insert own profile" on profiles for insert with check (auth.uid() = id);
 
+drop policy if exists "Active listings are public" on listings;
 create policy "Active listings are public" on listings for select using (
   status = 'active' or seller_id = auth.uid()
 );
+drop policy if exists "Sellers insert listings" on listings;
 create policy "Sellers insert listings" on listings for insert with check (seller_id = auth.uid());
+drop policy if exists "Sellers update own listings" on listings;
 create policy "Sellers update own listings" on listings for update using (seller_id = auth.uid());
 
+drop policy if exists "Photos readable with listing" on listing_photos;
 create policy "Photos readable with listing" on listing_photos for select using (true);
+drop policy if exists "Sellers manage photos" on listing_photos;
 create policy "Sellers manage photos" on listing_photos for all using (
   exists (select 1 from listings l where l.id = listing_id and l.seller_id = auth.uid())
 );
 
+drop policy if exists "Users read own favorites" on favorites;
 create policy "Users read own favorites" on favorites for select using (user_id = auth.uid());
+drop policy if exists "Users manage own favorites" on favorites;
 create policy "Users manage own favorites" on favorites for all using (user_id = auth.uid());
 
 insert into countries (id, code, name, default_currency, default_locale)
