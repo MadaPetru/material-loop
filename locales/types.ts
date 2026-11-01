@@ -190,11 +190,15 @@ export type TranslationDict = {
     share: string;
     contactSeller: string;
     edit: string;
+    manageTitle: string;
+    statusHint: string;
     markReserved: string;
     markSold: string;
     markGiven: string;
     reactivate: string;
     delete: string;
+    deleteConfirmTitle: string;
+    deleteConfirmBody: string;
     status: string;
     contactFailed: string;
   };

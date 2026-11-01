@@ -18,7 +18,7 @@ import { useLocale } from '@/contexts/LocaleContext';
 import { marketplace } from '@/lib/api/marketplace';
 import { conditionLabels, formatPrice, formatQuantity, statusLabels } from '@/lib/labels';
 import { colors, fonts, radii, spacing } from '@/lib/theme';
-import type { ListingWithRelations } from '@/lib/types';
+import type { ListingStatus, ListingWithRelations } from '@/lib/types';
 
 export default function ListingDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -27,6 +27,7 @@ export default function ListingDetailScreen() {
   const [listing, setListing] = useState<ListingWithRelations | null>(null);
   const [favorite, setFavorite] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [busyStatus, setBusyStatus] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -62,6 +63,9 @@ export default function ListingDetailScreen() {
 
   const isOwner = user?.id === listing.sellerId;
   const photo = listing.photos[0]?.url;
+  const canReactivate = listing.status !== 'active' && listing.status !== 'removed';
+  const canMarkReserved = listing.status === 'active';
+  const canMarkDone = listing.status === 'active' || listing.status === 'reserved';
 
   const toggleFavorite = async () => {
     if (!user) {
@@ -81,30 +85,60 @@ export default function ListingDetailScreen() {
     });
   };
 
-  const markStatus = async (status: 'sold' | 'given_away' | 'reserved' | 'active' | 'removed') => {
-    if (!user) return;
-    await marketplace.setListingStatus(listing.id, user.id, status);
-    const refreshed = await marketplace.getListing(listing.id);
-    setListing(refreshed);
-    Alert.alert(t('common.updated'), t('listing.status', { status: statusLabels[status] }));
+  const markStatus = async (status: Extract<ListingStatus, 'sold' | 'given_away' | 'reserved' | 'active' | 'removed'>) => {
+    if (!user || busyStatus) return;
+    setBusyStatus(true);
+    try {
+      await marketplace.setListingStatus(listing.id, user.id, status);
+      const refreshed = await marketplace.getListing(listing.id);
+      setListing(refreshed);
+    } catch (e) {
+      Alert.alert(t('common.error'), e instanceof Error ? e.message : t('errors.genericRetry'));
+    } finally {
+      setBusyStatus(false);
+    }
   };
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={{ paddingBottom: 48 }}>
+    <ScrollView style={styles.root} contentContainerStyle={{ paddingBottom: 56 }}>
       {photo ? (
         <Image source={{ uri: photo }} style={styles.hero} contentFit="cover" />
       ) : (
-        <View style={[styles.hero, styles.heroEmpty]}>
-          <Text style={styles.heroEmptyText}>{t('listing.noPhoto')}</Text>
+        <View style={styles.heroText}>
+          <View style={styles.heroAccent} />
+          <View style={styles.heroTextBody}>
+            <Text style={styles.heroPrice}>
+              {formatPrice(listing.price, listing.currency, listing.isFree)}
+            </Text>
+            <Text style={styles.heroTitle}>{listing.title}</Text>
+          </View>
         </View>
       )}
 
       <View style={styles.body}>
-        <Text style={styles.price}>
-          {formatPrice(listing.price, listing.currency, listing.isFree)}
-          {listing.isNegotiable ? ` · ${t('listing.negotiable')}` : ''}
-        </Text>
-        <Text style={styles.title}>{listing.title}</Text>
+        {photo ? (
+          <>
+            <Text style={styles.price}>
+              {formatPrice(listing.price, listing.currency, listing.isFree)}
+              {listing.isNegotiable ? ` · ${t('listing.negotiable')}` : ''}
+            </Text>
+            <Text style={styles.title}>{listing.title}</Text>
+          </>
+        ) : listing.isNegotiable ? (
+          <Text style={styles.meta}>{t('listing.negotiable')}</Text>
+        ) : null}
+
+        <View style={styles.badgeRow}>
+          <View style={styles.statusPill}>
+            <Text style={styles.statusPillText}>{statusLabels[listing.status]}</Text>
+          </View>
+          {listing.isFree ? (
+            <View style={[styles.statusPill, styles.freePill]}>
+              <Text style={[styles.statusPillText, styles.freePillText]}>{t('common.free')}</Text>
+            </View>
+          ) : null}
+        </View>
+
         <Text style={styles.meta}>
           {formatQuantity(listing.quantity, listing.unit)} · {conditionLabels[listing.condition]}
         </Text>
@@ -112,13 +146,9 @@ export default function ListingDetailScreen() {
           {formatCityCounty(listing.cityId)} · {t('listing.approxLocation')}
         </Text>
         <Text style={styles.meta}>
-          {listing.category?.name}
-          {listing.subcategory ? ` / ${listing.subcategory.name}` : ''}
-          {listing.brand ? ` · ${listing.brand}` : ''}
-          {listing.model ? ` ${listing.model}` : ''}
-        </Text>
-        <Text style={styles.status}>
-          {t('listing.status', { status: statusLabels[listing.status] })}
+          {[listing.category?.name, listing.subcategory?.name, listing.brand, listing.model]
+            .filter(Boolean)
+            .join(' · ')}
         </Text>
 
         <Text style={styles.section}>{t('listing.description')}</Text>
@@ -154,65 +184,115 @@ export default function ListingDetailScreen() {
           </Link>
         ) : null}
 
-        <View style={styles.actions}>
-          <Button
-            label={favorite ? t('listing.removeFavorite') : t('listing.addFavorite')}
-            variant="secondary"
+        <View style={styles.utilityRow}>
+          <Pressable
+            accessibilityRole="button"
             onPress={toggleFavorite}
-          />
-          <Button label={t('listing.share')} variant="secondary" onPress={share} />
-          {!isOwner ? (
-            <Button
-              label={t('listing.contactSeller')}
-              onPress={async () => {
-                if (!user) {
-                  router.push('/(auth)/login');
-                  return;
-                }
-                try {
-                  const conversation = await marketplace.startConversation({
-                    listingId: listing.id,
-                    buyerId: user.id,
-                    sellerId: listing.sellerId,
-                    initialMessage: t('messages.contactStarter', { title: listing.title }),
-                  });
-                  router.push({
-                    pathname: '/(tabs)/messages',
-                    params: { conversationId: conversation.id },
-                  });
-                } catch (e) {
-                  Alert.alert(
-                    t('nav.messages'),
-                    e instanceof Error ? e.message : t('listing.contactFailed')
-                  );
-                }
-              }}
-            />
-          ) : (
-            <>
-              <Button label={t('listing.edit')} onPress={() => router.push(`/listing/${listing.id}/edit`)} />
-              <Button
-                label={t('listing.markReserved')}
-                variant="secondary"
-                onPress={() => markStatus('reserved')}
-              />
-              <Button
-                label={listing.isFree ? t('listing.markGiven') : t('listing.markSold')}
-                onPress={() => markStatus(listing.isFree ? 'given_away' : 'sold')}
-              />
-              <Button
-                label={t('listing.reactivate')}
-                variant="ghost"
-                onPress={() => markStatus('active')}
-              />
-              <Button
-                label={t('listing.delete')}
-                variant="danger"
-                onPress={() => markStatus('removed')}
-              />
-            </>
-          )}
+            style={[styles.utilityBtn, favorite && styles.utilityBtnActive]}
+          >
+            <Text style={[styles.utilityText, favorite && styles.utilityTextActive]}>
+              {favorite ? t('listing.removeFavorite') : t('listing.addFavorite')}
+            </Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" onPress={share} style={styles.utilityBtn}>
+            <Text style={styles.utilityText}>{t('listing.share')}</Text>
+          </Pressable>
         </View>
+
+        {!isOwner ? (
+          <Button
+            label={t('listing.contactSeller')}
+            onPress={async () => {
+              if (!user) {
+                router.push('/(auth)/login');
+                return;
+              }
+              try {
+                const conversation = await marketplace.startConversation({
+                  listingId: listing.id,
+                  buyerId: user.id,
+                  sellerId: listing.sellerId,
+                  initialMessage: t('messages.contactStarter', { title: listing.title }),
+                });
+                router.push({
+                  pathname: '/(tabs)/messages',
+                  params: { conversationId: conversation.id },
+                });
+              } catch (e) {
+                Alert.alert(
+                  t('nav.messages'),
+                  e instanceof Error ? e.message : t('listing.contactFailed')
+                );
+              }
+            }}
+          />
+        ) : (
+          <View style={styles.manageCard}>
+            <Text style={styles.manageTitle}>{t('listing.manageTitle')}</Text>
+            <Button
+              label={t('listing.edit')}
+              onPress={() => router.push(`/listing/${listing.id}/edit`)}
+            />
+            {(canMarkReserved || canMarkDone || canReactivate) ? (
+              <View style={styles.statusBlock}>
+                <Text style={styles.statusHint}>{t('listing.statusHint')}</Text>
+                <View style={styles.statusActions}>
+                  {canMarkReserved ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      disabled={busyStatus}
+                      onPress={() => markStatus('reserved')}
+                      style={[styles.statusChip, busyStatus && styles.statusChipDisabled]}
+                    >
+                      <Text style={styles.statusChipText}>{t('listing.markReserved')}</Text>
+                    </Pressable>
+                  ) : null}
+                  {canMarkDone ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      disabled={busyStatus}
+                      onPress={() => markStatus(listing.isFree ? 'given_away' : 'sold')}
+                      style={[styles.statusChip, busyStatus && styles.statusChipDisabled]}
+                    >
+                      <Text style={styles.statusChipText}>
+                        {listing.isFree ? t('listing.markGiven') : t('listing.markSold')}
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                  {canReactivate ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      disabled={busyStatus}
+                      onPress={() => markStatus('active')}
+                      style={[styles.statusChip, styles.statusChipAccent, busyStatus && styles.statusChipDisabled]}
+                    >
+                      <Text style={[styles.statusChipText, styles.statusChipAccentText]}>
+                        {t('listing.reactivate')}
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              </View>
+            ) : null}
+            <Pressable
+              accessibilityRole="button"
+              disabled={busyStatus}
+              onPress={() => {
+                Alert.alert(t('listing.deleteConfirmTitle'), t('listing.deleteConfirmBody'), [
+                  { text: t('common.cancel'), style: 'cancel' },
+                  {
+                    text: t('listing.delete'),
+                    style: 'destructive',
+                    onPress: () => markStatus('removed'),
+                  },
+                ]);
+              }}
+              style={styles.deleteLink}
+            >
+              <Text style={styles.deleteLinkText}>{t('listing.delete')}</Text>
+            </Pressable>
+          </View>
+        )}
       </View>
     </ScrollView>
   );
@@ -223,13 +303,37 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   missing: { fontFamily: fonts.sans, color: colors.inkMuted },
   hero: { width: '100%', height: 280, backgroundColor: colors.mapDust },
-  heroEmpty: { alignItems: 'center', justifyContent: 'center' },
-  heroEmptyText: { fontFamily: fonts.sans, color: colors.inkMuted },
+  heroText: {
+    flexDirection: 'row',
+    backgroundColor: colors.bgElevated,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
+    minHeight: 140,
+  },
+  heroAccent: { width: 6, backgroundColor: colors.brand },
+  heroTextBody: {
+    flex: 1,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.xl,
+    justifyContent: 'center',
+    gap: spacing.sm,
+  },
+  heroPrice: { fontFamily: fonts.sansBold, fontSize: 22, color: colors.accent },
+  heroTitle: { fontFamily: fonts.display, fontSize: 26, color: colors.ink, lineHeight: 32 },
   body: { padding: spacing.xl, gap: spacing.sm },
   price: { fontFamily: fonts.sansBold, fontSize: 24, color: colors.accent },
   title: { fontFamily: fonts.display, fontSize: 28, color: colors.ink, lineHeight: 34 },
-  meta: { fontFamily: fonts.sans, color: colors.inkMuted, fontSize: 14 },
-  status: { fontFamily: fonts.sansMedium, color: colors.brand, marginTop: spacing.xs },
+  badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.xs },
+  statusPill: {
+    backgroundColor: colors.brandSoft,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: radii.pill,
+  },
+  statusPillText: { fontFamily: fonts.sansBold, color: colors.brandDark, fontSize: 12 },
+  freePill: { backgroundColor: colors.accentSoft },
+  freePillText: { color: colors.accent },
+  meta: { fontFamily: fonts.sans, color: colors.inkMuted, fontSize: 14, lineHeight: 20 },
   section: {
     fontFamily: fonts.display,
     fontSize: 20,
@@ -253,5 +357,87 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
   },
   sellerName: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.ink },
-  actions: { gap: spacing.sm, marginTop: spacing.xl },
+  utilityRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.xl,
+  },
+  utilityBtn: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.bgElevated,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  utilityBtnActive: {
+    borderColor: colors.brand,
+    backgroundColor: colors.brandSoft,
+  },
+  utilityText: { fontFamily: fonts.sansMedium, color: colors.ink, fontSize: 14 },
+  utilityTextActive: { color: colors.brandDark, fontFamily: fonts.sansBold },
+  manageCard: {
+    marginTop: spacing.md,
+    padding: spacing.lg,
+    borderRadius: radii.xl,
+    backgroundColor: colors.bgElevated,
+    borderWidth: 1,
+    borderColor: colors.line,
+    gap: spacing.md,
+  },
+  manageTitle: {
+    fontFamily: fonts.display,
+    fontSize: 18,
+    color: colors.ink,
+  },
+  statusBlock: {
+    gap: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
+  },
+  statusHint: {
+    fontFamily: fonts.sansMedium,
+    fontSize: 13,
+    color: colors.inkMuted,
+  },
+  statusActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  statusChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.bg,
+  },
+  statusChipAccent: {
+    borderColor: colors.brand,
+    backgroundColor: colors.brandSoft,
+  },
+  statusChipDisabled: { opacity: 0.45 },
+  statusChipText: {
+    fontFamily: fonts.sansMedium,
+    color: colors.ink,
+    fontSize: 13,
+  },
+  statusChipAccentText: {
+    color: colors.brandDark,
+    fontFamily: fonts.sansBold,
+  },
+  deleteLink: {
+    alignSelf: 'center',
+    paddingVertical: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  deleteLinkText: {
+    fontFamily: fonts.sansMedium,
+    color: colors.danger,
+    fontSize: 14,
+  },
 });
