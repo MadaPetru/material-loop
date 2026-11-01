@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -205,21 +205,20 @@ export default function SearchScreen() {
       style={[
         styles.root,
         isDesktop && styles.rootDesktop,
-        isDesktop && { paddingHorizontal: contentPad, paddingTop: spacing.lg },
+        isDesktop && { paddingHorizontal: contentPad, paddingTop: spacing.md },
       ]}
     >
       {isDesktop ? (
         <View style={styles.desktopSidebar}>
           <Text style={styles.sidebarTitle}>{t('search.filtersTitle')}</Text>
-          <ScrollView showsVerticalScrollIndicator={false}>
-            <FilterPanel {...filterProps} />
-          </ScrollView>
+          <FilterPanel {...filterProps} />
           {activeFilterCount > 0 ? (
             <Button
               label={t('search.resetFilters')}
               variant="ghost"
               compact
               onPress={clearFilters}
+              style={{ alignSelf: 'flex-start' }}
             />
           ) : null}
         </View>
@@ -227,13 +226,25 @@ export default function SearchScreen() {
 
       <View style={styles.main}>
         <View style={[styles.topBar, !isDesktop && { paddingHorizontal: contentPad }]}>
-          <Input
-            placeholder={t('search.placeholder')}
-            value={query}
-            onChangeText={setQuery}
-            onSubmitEditing={runSearch}
-            returnKeyType="search"
-          />
+          <View style={styles.searchRow}>
+            <View style={styles.searchInput}>
+              <Input
+                placeholder={t('search.placeholder')}
+                value={query}
+                onChangeText={setQuery}
+                onSubmitEditing={runSearch}
+                returnKeyType="search"
+              />
+            </View>
+            {isDesktop ? (
+              <Button
+                label={t('common.search')}
+                compact
+                onPress={runSearch}
+                style={styles.searchBtn}
+              />
+            ) : null}
+          </View>
 
           {!isDesktop ? (
             <View style={styles.mobileActions}>
@@ -249,11 +260,7 @@ export default function SearchScreen() {
               </Pressable>
               <Button label={t('common.search')} compact onPress={runSearch} style={{ flex: 1 }} />
             </View>
-          ) : (
-            <View style={styles.desktopSearchActions}>
-              <Button label={t('common.search')} onPress={runSearch} style={{ minWidth: 140 }} />
-            </View>
-          )}
+          ) : null}
 
           {!isDesktop && showFilters ? (
             <View style={styles.mobileFilterCard}>
@@ -332,33 +339,41 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   rootDesktop: {
     flexDirection: 'row',
-    gap: spacing.xl,
+    alignItems: 'flex-start',
+    gap: spacing.lg,
     maxWidth: layout.contentMax,
     width: '100%',
     alignSelf: 'center',
   },
   desktopSidebar: {
-    width: 300,
+    width: 280,
+    flexShrink: 0,
     backgroundColor: colors.bgElevated,
     borderRadius: radii.xl,
     borderWidth: 1,
     borderColor: colors.line,
-    padding: spacing.lg,
-    gap: spacing.md,
-    maxHeight: '100%',
+    padding: spacing.md,
+    gap: spacing.sm,
   },
   sidebarTitle: {
     fontFamily: fonts.display,
-    fontSize: 22,
+    fontSize: 20,
     color: colors.ink,
   },
   main: { flex: 1, minWidth: 0 },
   topBar: {
-    gap: spacing.md,
-    paddingVertical: spacing.lg,
+    gap: spacing.sm,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.sm,
   },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: spacing.sm,
+  },
+  searchInput: { flex: 1, minWidth: 0 },
+  searchBtn: { minWidth: 110 },
   mobileActions: { flexDirection: 'row', gap: spacing.sm },
-  desktopSearchActions: { flexDirection: 'row', justifyContent: 'flex-end' },
   filterToggle: {
     flex: 1,
     minHeight: 40,

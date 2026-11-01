@@ -68,6 +68,7 @@ export default function TabLayout() {
           options={{
             title: t('nav.search'),
             href: '/search',
+            headerShown: !isDesktop,
             tabBarIcon: ({ color }) => <TabIcon name="search" color={String(color)} />,
           }}
           listeners={{
