@@ -214,8 +214,17 @@ export type TranslationDict = {
     usersSection: string;
     rolesSection: string;
     marketingAdsSection: string;
+    marketingTemplatesHint: string;
     marketingEmailSection: string;
     marketingEmailHint: string;
+    recipientSearchPlaceholder: string;
+    selectMatching: string;
+    clearRecipients: string;
+    recipientsSelected: string;
+    noRecipientsMatch: string;
+    needRecipients: string;
+    useTemplate: string;
+    templateFormHint: string;
     pickRecipients: string;
     composeSelected: string;
     searchPlaceholder: string;

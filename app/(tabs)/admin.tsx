@@ -80,6 +80,7 @@ export default function AdminScreen() {
   const [mailSubject, setMailSubject] = useState('');
   const [mailBody, setMailBody] = useState('');
   const [selectedMailIds, setSelectedMailIds] = useState<Set<string>>(new Set());
+  const [recipientQuery, setRecipientQuery] = useState('');
 
   const [roleForm, setRoleForm] = useState<{
     id: string;
@@ -144,6 +145,36 @@ export default function AdminScreen() {
       );
     });
   }, [users, query]);
+
+  /** LIKE-style recipient filter: substring match on email / name. */
+  const filteredRecipients = useMemo(() => {
+    const q = recipientQuery.trim().toLowerCase();
+    const pool = users.filter((u) => u.email && !u.deactivatedAt);
+    if (!q) return pool;
+    return pool.filter(
+      (u) =>
+        u.email.toLowerCase().includes(q) ||
+        u.displayName.toLowerCase().includes(q),
+    );
+  }, [users, recipientQuery]);
+
+  const openMailFromTemplate = (template: MarketingAd, targets?: Profile[]) => {
+    const selected = targets?.length
+      ? targets
+      : users.filter((u) => selectedMailIds.has(u.id) && u.email);
+    if (!selected.length) {
+      setError(t('admin.needRecipients'));
+      return;
+    }
+    setError(null);
+    setMailTarget(selected);
+    setMailSubject(template.title);
+    setMailBody(
+      selected.length === 1
+        ? template.body.split('%{name}').join(selected[0].displayName)
+        : template.body.split('%{name}').join(''),
+    );
+  };
 
   if (!user) {
     return (
@@ -385,25 +416,73 @@ export default function AdminScreen() {
       {activeSection === 'marketing' ? (
         <View style={{ gap: spacing.md }}>
           <Text style={styles.section}>{t('admin.marketingAdsSection')}</Text>
+          <Text style={styles.hint}>{t('admin.marketingTemplatesHint')}</Text>
           {canMarketingAds ? (
             <Button
               label={t('admin.createAd')}
-              onPress={() => setAdForm({ title: '', body: '', active: true })}
+              onPress={() =>
+                setAdForm({
+                  title: t('admin.emailSubjectDefault'),
+                  body: t('admin.emailBodyDefault', { name: '%{name}' }),
+                  active: true,
+                })
+              }
             />
           ) : null}
           {canMarketingEmail && canReadUsers ? (
             <>
               <Text style={styles.section}>{t('admin.marketingEmailSection')}</Text>
               <Text style={styles.hint}>{t('admin.marketingEmailHint')}</Text>
-              <Button
-                label={t('admin.composeSelected')}
-                variant="secondary"
-                disabled={!selectedMailIds.size}
-                onPress={() => {
-                  const targets = users.filter((u) => selectedMailIds.has(u.id) && u.email);
-                  if (targets.length) openMail(targets);
-                }}
+              <TextInput
+                value={recipientQuery}
+                onChangeText={setRecipientQuery}
+                placeholder={t('admin.recipientSearchPlaceholder')}
+                placeholderTextColor={colors.inkFaint}
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={styles.search}
               />
+              <View style={styles.cardActions}>
+                <Button
+                  label={t('admin.selectMatching', { count: String(filteredRecipients.length) })}
+                  variant="ghost"
+                  compact
+                  disabled={!filteredRecipients.length}
+                  onPress={() =>
+                    setSelectedMailIds((prev) => {
+                      const next = new Set(prev);
+                      for (const u of filteredRecipients) next.add(u.id);
+                      return next;
+                    })
+                  }
+                  style={styles.action}
+                />
+                <Button
+                  label={t('admin.clearRecipients')}
+                  variant="ghost"
+                  compact
+                  disabled={!selectedMailIds.size}
+                  onPress={() => setSelectedMailIds(new Set())}
+                  style={styles.action}
+                />
+                <Button
+                  label={t('admin.composeSelected', { count: String(selectedMailIds.size) })}
+                  variant="secondary"
+                  compact
+                  disabled={!selectedMailIds.size}
+                  onPress={() => {
+                    const targets = users.filter((u) => selectedMailIds.has(u.id) && u.email);
+                    if (targets.length) openMail(targets);
+                  }}
+                  style={styles.action}
+                />
+              </View>
+              <Text style={styles.meta}>
+                {t('admin.recipientsSelected', {
+                  selected: String(selectedMailIds.size),
+                  shown: String(filteredRecipients.length),
+                })}
+              </Text>
             </>
           ) : null}
         </View>
@@ -447,31 +526,35 @@ export default function AdminScreen() {
           activeSection === 'marketing' && canMarketingEmail && canReadUsers ? (
             <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
               <Text style={styles.section}>{t('admin.pickRecipients')}</Text>
-              {users.map((profile) => {
-                const on = selectedMailIds.has(profile.id);
-                return (
-                  <Pressable
-                    key={profile.id}
-                    style={[styles.card, styles.checkboxRow]}
-                    onPress={() =>
-                      setSelectedMailIds((prev) => {
-                        const next = new Set(prev);
-                        if (next.has(profile.id)) next.delete(profile.id);
-                        else next.add(profile.id);
-                        return next;
-                      })
-                    }
-                  >
-                    <View style={[styles.check, on && styles.checkOn]}>
-                      <Text style={styles.checkText}>{on ? '✓' : ''}</Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.name}>{profile.displayName}</Text>
-                      <Text style={styles.meta}>{profile.email}</Text>
-                    </View>
-                  </Pressable>
-                );
-              })}
+              {!filteredRecipients.length ? (
+                <Text style={styles.empty}>{t('admin.noRecipientsMatch')}</Text>
+              ) : (
+                filteredRecipients.map((profile) => {
+                  const on = selectedMailIds.has(profile.id);
+                  return (
+                    <Pressable
+                      key={profile.id}
+                      style={[styles.card, styles.checkboxRow]}
+                      onPress={() =>
+                        setSelectedMailIds((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(profile.id)) next.delete(profile.id);
+                          else next.add(profile.id);
+                          return next;
+                        })
+                      }
+                    >
+                      <View style={[styles.check, on && styles.checkOn]}>
+                        <Text style={styles.checkText}>{on ? '✓' : ''}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.name}>{profile.displayName}</Text>
+                        <Text style={styles.meta}>{profile.email}</Text>
+                      </View>
+                    </Pressable>
+                  );
+                })
+              )}
             </View>
           ) : undefined
         }
@@ -623,31 +706,41 @@ export default function AdminScreen() {
               <Text style={styles.entitlements} numberOfLines={4}>
                 {ad.body || '—'}
               </Text>
-              {canMarketingAds ? (
-                <View style={styles.cardActions}>
+              <View style={styles.cardActions}>
+                {canMarketingEmail ? (
                   <Button
-                    label={t('admin.editAd')}
-                    variant="secondary"
+                    label={t('admin.useTemplate')}
                     compact
-                    onPress={() =>
-                      setAdForm({
-                        id: ad.id,
-                        title: ad.title,
-                        body: ad.body,
-                        active: ad.active,
-                      })
-                    }
+                    onPress={() => openMailFromTemplate(ad)}
                     style={styles.action}
                   />
-                  <Button
-                    label={t('admin.deleteAd')}
-                    variant="danger"
-                    compact
-                    onPress={() => setPending({ type: 'deleteAd', ad })}
-                    style={styles.action}
-                  />
-                </View>
-              ) : null}
+                ) : null}
+                {canMarketingAds ? (
+                  <>
+                    <Button
+                      label={t('admin.editAd')}
+                      variant="secondary"
+                      compact
+                      onPress={() =>
+                        setAdForm({
+                          id: ad.id,
+                          title: ad.title,
+                          body: ad.body,
+                          active: ad.active,
+                        })
+                      }
+                      style={styles.action}
+                    />
+                    <Button
+                      label={t('admin.deleteAd')}
+                      variant="danger"
+                      compact
+                      onPress={() => setPending({ type: 'deleteAd', ad })}
+                      style={styles.action}
+                    />
+                  </>
+                ) : null}
+              </View>
             </View>
           );
         }}
@@ -827,6 +920,7 @@ export default function AdminScreen() {
             <Text style={styles.modalTitle}>
               {adForm?.id ? t('admin.editAd') : t('admin.createAd')}
             </Text>
+            <Text style={styles.hint}>{t('admin.templateFormHint')}</Text>
             <TextInput
               value={adForm?.title ?? ''}
               onChangeText={(title) => setAdForm((f) => (f ? { ...f, title } : f))}
