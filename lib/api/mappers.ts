@@ -20,6 +20,7 @@ export type DbProfile = {
   role: Profile['role'];
   city_id: string | null;
   phone: string | null;
+  phone_verified_at: string | null;
   bio: string | null;
   location?: unknown;
   seller_rating: number | null;
@@ -101,6 +102,7 @@ export function mapProfile(row: DbProfile): Profile {
     role: row.role,
     cityId: row.city_id,
     phone: row.phone,
+    phoneVerifiedAt: row.phone_verified_at ?? null,
     bio: row.bio,
     lat: point?.lat ?? city?.lat ?? null,
     lng: point?.lng ?? city?.lng ?? null,

@@ -60,6 +60,8 @@ export type TranslationDict = {
     create: string;
     loginToSell: string;
     myListings: string;
+    myListingsTitle: string;
+    listingsCount: string;
   };
   createListing: {
     heading: string;
@@ -136,6 +138,30 @@ export type TranslationDict = {
     signOut: string;
     legal: string;
     myListings: string;
+    editTitle: string;
+    displayName: string;
+    bio: string;
+    locationLabel: string;
+    save: string;
+    saving: string;
+    notSignedIn: string;
+    saveFailed: string;
+    phone: string;
+    phoneHint: string;
+    phonePlaceholder: string;
+    phoneVerified: string;
+    phoneUnverified: string;
+    sendCode: string;
+    sendingCode: string;
+    codeLabel: string;
+    codePlaceholder: string;
+    verifyCode: string;
+    verifying: string;
+    changePhone: string;
+    removePhone: string;
+    codeSent: string;
+    demoCodeHint: string;
+    phoneInvalid: string;
   };
   myListings: {
     title: string;

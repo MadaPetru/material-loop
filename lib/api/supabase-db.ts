@@ -6,6 +6,7 @@ import { COUNTRY_RO, COUNTIES, CITIES, getCity } from '@/data/romania';
 import { createSessionFromUrl, getOAuthRedirectTo, oauthErrorMessage } from '@/lib/auth/oauth';
 import { approximateCoords, daysFromNow, haversineKm } from '@/lib/geo';
 import { LISTING_EXPIRY_DAYS } from '@/lib/config';
+import { normalizeRoPhone } from '@/lib/phone';
 import { getSupabase } from '@/lib/supabase';
 import type {
   ConversationWithMeta,
@@ -90,6 +91,7 @@ async function ensureProfile(userId: string, email: string, displayName?: string
     role: 'user',
     city_id: city?.id ?? null,
     phone: null,
+    phone_verified_at: null,
     bio: null,
     location: city ? toEwkt(city.lat, city.lng) : null,
     seller_rating: null,
@@ -205,7 +207,7 @@ export const supabaseDb = {
     if (patch.avatarUrl !== undefined) update.avatar_url = patch.avatarUrl;
     if (patch.accountType !== undefined) update.account_type = patch.accountType;
     if (patch.cityId !== undefined) update.city_id = patch.cityId;
-    if (patch.phone !== undefined) update.phone = patch.phone;
+    // Phone is only updated via requestPhoneVerification / confirmPhoneVerification.
     if (patch.bio !== undefined) update.bio = patch.bio;
     if (patch.lat != null && patch.lng != null) {
       update.location = toEwkt(patch.lat, patch.lng);
@@ -222,6 +224,78 @@ export const supabaseDb = {
       .single();
     if (error) throw new Error(error.message);
     return mapProfile(data as DbProfile);
+  },
+
+  async requestPhoneVerification(userId: string, phoneInput: string) {
+    const phone = normalizeRoPhone(phoneInput);
+    if (!phone) throw new Error('Număr invalid. Folosește un mobil românesc (07…).');
+    const sb = client();
+    const {
+      data: { user },
+      error: userError,
+    } = await sb.auth.getUser();
+    if (userError) throw new Error(userError.message);
+    if (!user || user.id !== userId) throw new Error('Autentifică-te din nou.');
+
+    const { error } = await sb.auth.updateUser({ phone });
+    if (error) throw new Error(error.message);
+    return { phone };
+  },
+
+  async confirmPhoneVerification(userId: string, phoneInput: string, token: string) {
+    const phone = normalizeRoPhone(phoneInput);
+    if (!phone) throw new Error('Număr invalid.');
+    const code = token.trim();
+    if (!/^\d{6}$/.test(code)) throw new Error('Codul trebuie să aibă 6 cifre.');
+
+    const sb = client();
+    const {
+      data: { user: sessionUser },
+      error: userError,
+    } = await sb.auth.getUser();
+    if (userError) throw new Error(userError.message);
+    if (!sessionUser || sessionUser.id !== userId) throw new Error('Autentifică-te din nou.');
+
+    const { data, error } = await sb.auth.verifyOtp({
+      phone,
+      token: code,
+      type: 'phone_change',
+    });
+    if (error) throw new Error(error.message);
+
+    const verifiedPhone = data.user?.phone ? normalizeRoPhone(data.user.phone) : phone;
+    if (!verifiedPhone) throw new Error('Verificarea a reușit, dar numărul lipsește.');
+
+    const { data: row, error: updateError } = await sb
+      .from('profiles')
+      .update({
+        phone: verifiedPhone,
+        phone_verified_at: new Date().toISOString(),
+      })
+      .eq('id', userId)
+      .select('*')
+      .single();
+    if (updateError) throw new Error(updateError.message);
+    return mapProfile(row as DbProfile);
+  },
+
+  async clearPhone(userId: string) {
+    const sb = client();
+    const {
+      data: { user },
+      error: userError,
+    } = await sb.auth.getUser();
+    if (userError) throw new Error(userError.message);
+    if (!user || user.id !== userId) throw new Error('Autentifică-te din nou.');
+
+    const { data: row, error } = await sb
+      .from('profiles')
+      .update({ phone: null, phone_verified_at: null })
+      .eq('id', userId)
+      .select('*')
+      .single();
+    if (error) throw new Error(error.message);
+    return mapProfile(row as DbProfile);
   },
 
   async getProfile(userId: string) {

@@ -27,6 +27,11 @@ export const marketplace = {
     return supabaseDb.signInWithGoogle();
   },
   updateProfile: (userId: string, patch: Partial<Profile>) => api.updateProfile(userId, patch),
+  requestPhoneVerification: (userId: string, phone: string) =>
+    api.requestPhoneVerification(userId, phone),
+  confirmPhoneVerification: (userId: string, phone: string, token: string) =>
+    api.confirmPhoneVerification(userId, phone, token),
+  clearPhone: (userId: string) => api.clearPhone(userId),
   getProfile: (userId: string) => api.getProfile(userId),
   search: (filters?: SearchFilters) => api.search(filters),
   getListing: (id: string, center?: { lat: number; lng: number }) => api.getListing(id, center),

@@ -7,7 +7,7 @@ Aplicație **web + mobil** pe un singur codebase: **Expo (React Native) + Expo R
 ## Ce există în v1 (Phase 1)
 
 - Autentificare email/parolă (demo local) + buton Google (activ după credențiale)
-- Profil utilizator (locație pe județ/localitate, fără adresă exactă publică)
+- Profil utilizator (locație pe județ/localitate, fără adresă exactă publică; telefon mobil cu verificare SMS)
 - Categorii ierarhice de materiale
 - Creare / editare / status anunțuri (draft, activ, rezervat, vândut, oferit, șters)
 - Fotografii multiple, cantități zecimale, gratuit / negociabil
@@ -41,6 +41,7 @@ cp .env.example .env
 ```
 
 4. Reactivează aplicația. Cu `EXPO_PUBLIC_SUPABASE_*` setate, Auth + anunțuri folosesc cloud-ul (nu demo local).
+5. Pentru **verificare telefon (SMS)**: Authentication → Providers → Phone → activează un provider SMS (Twilio / MessageBird etc.). Fără SMS provider, OTP-ul nu ajunge pe telefon real; în **mod demo** folosește codul `123456`.
 
 ## Deploy web (Vercel)
 

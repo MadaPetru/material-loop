@@ -5,6 +5,7 @@ import { SEED_LISTINGS, SEED_PHOTOS, SEED_PROFILES } from '@/data/seed-listings'
 import { approximateCoords, daysFromNow, haversineKm } from '@/lib/geo';
 import { createId } from '@/lib/id';
 import { LISTING_EXPIRY_DAYS } from '@/lib/config';
+import { normalizeRoPhone } from '@/lib/phone';
 import type {
   ChatMessage,
   Conversation,
@@ -19,7 +20,12 @@ import type {
 } from '@/lib/types';
 import { otherParticipantId, withMeta } from './messaging-shared';
 
-const STORAGE_KEY = 'materialloop.demo.v2';
+const STORAGE_KEY = 'materialloop.demo.v3';
+
+/** Demo OTP always accepts this code (and any 6 digits after send). */
+export const DEMO_PHONE_OTP = '123456';
+
+type PendingPhone = { userId: string; phone: string; code: string; sentAt: number };
 
 type DemoState = {
   profiles: Profile[];
@@ -30,6 +36,7 @@ type DemoState = {
   messages: ChatMessage[];
   sessionUserId: string | null;
   passwords: Record<string, string>;
+  pendingPhone: PendingPhone | null;
 };
 
 let memory: DemoState | null = null;
@@ -48,6 +55,7 @@ function defaultState(): DemoState {
       'demo@materialloop.ro': 'demo1234',
       'ana@example.ro': 'demo1234',
     },
+    pendingPhone: null,
   };
 }
 
@@ -73,6 +81,7 @@ async function load() {
           messages: parsed.messages ?? [],
           sessionUserId: parsed.sessionUserId ?? null,
           passwords: { ...defaults.passwords, ...(parsed.passwords ?? {}) },
+          pendingPhone: parsed.pendingPhone ?? null,
         };
       } catch {
         memory = defaults;
@@ -134,6 +143,7 @@ export const demoDb = {
       role: 'user',
       cityId: 'bh-oradea',
       phone: null,
+      phoneVerifiedAt: null,
       bio: null,
       lat: 47.0465,
       lng: 21.9189,
@@ -172,7 +182,71 @@ export const demoDb = {
     const state = await load();
     const idx = state.profiles.findIndex((p) => p.id === userId);
     if (idx < 0) throw new Error('Profil negăsit.');
-    state.profiles[idx] = { ...state.profiles[idx], ...patch, id: userId };
+    // Phone is only updated via requestPhoneVerification / confirmPhoneVerification.
+    const { phone: _phone, phoneVerifiedAt: _verified, ...safe } = patch;
+    state.profiles[idx] = { ...state.profiles[idx], ...safe, id: userId };
+    await save();
+    return state.profiles[idx];
+  },
+
+  async requestPhoneVerification(userId: string, phoneInput: string) {
+    const phone = normalizeRoPhone(phoneInput);
+    if (!phone) throw new Error('Număr invalid. Folosește un mobil românesc (07…).');
+    const state = await load();
+    const profile = state.profiles.find((p) => p.id === userId);
+    if (!profile) throw new Error('Profil negăsit.');
+    if (state.sessionUserId !== userId) throw new Error('Autentifică-te din nou.');
+    state.pendingPhone = {
+      userId,
+      phone,
+      code: DEMO_PHONE_OTP,
+      sentAt: Date.now(),
+    };
+    await save();
+    return { phone, demoCode: DEMO_PHONE_OTP };
+  },
+
+  async confirmPhoneVerification(userId: string, phoneInput: string, token: string) {
+    const phone = normalizeRoPhone(phoneInput);
+    if (!phone) throw new Error('Număr invalid.');
+    const code = token.trim();
+    if (!/^\d{6}$/.test(code)) throw new Error('Codul trebuie să aibă 6 cifre.');
+    const state = await load();
+    const idx = state.profiles.findIndex((p) => p.id === userId);
+    if (idx < 0) throw new Error('Profil negăsit.');
+    if (state.sessionUserId !== userId) throw new Error('Autentifică-te din nou.');
+    const pending = state.pendingPhone;
+    if (!pending || pending.userId !== userId || pending.phone !== phone) {
+      throw new Error('Trimite mai întâi codul de verificare.');
+    }
+    if (Date.now() - pending.sentAt > 10 * 60 * 1000) {
+      state.pendingPhone = null;
+      await save();
+      throw new Error('Codul a expirat. Trimite din nou.');
+    }
+    if (code !== pending.code && code !== DEMO_PHONE_OTP) {
+      throw new Error('Cod greșit. În demo folosește 123456.');
+    }
+    state.profiles[idx] = {
+      ...state.profiles[idx],
+      phone,
+      phoneVerifiedAt: new Date().toISOString(),
+    };
+    state.pendingPhone = null;
+    await save();
+    return state.profiles[idx];
+  },
+
+  async clearPhone(userId: string) {
+    const state = await load();
+    const idx = state.profiles.findIndex((p) => p.id === userId);
+    if (idx < 0) throw new Error('Profil negăsit.');
+    state.profiles[idx] = {
+      ...state.profiles[idx],
+      phone: null,
+      phoneVerifiedAt: null,
+    };
+    if (state.pendingPhone?.userId === userId) state.pendingPhone = null;
     await save();
     return state.profiles[idx];
   },

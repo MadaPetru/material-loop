@@ -84,6 +84,8 @@ export interface Profile {
   role: UserRole;
   cityId: string | null;
   phone: string | null;
+  /** Set only after SMS OTP verification succeeds. */
+  phoneVerifiedAt: string | null;
   bio: string | null;
   lat: number | null;
   lng: number | null;

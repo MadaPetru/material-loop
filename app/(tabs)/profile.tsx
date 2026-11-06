@@ -7,6 +7,7 @@ import { Screen } from '@/components/ui/Screen';
 import { formatCityCounty } from '@/data/romania';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocale } from '@/contexts/LocaleContext';
+import { formatRoPhoneDisplay } from '@/lib/phone';
 import { colors, fonts, radii, spacing } from '@/lib/theme';
 import { useResponsive } from '@/lib/useResponsive';
 
@@ -55,6 +56,13 @@ export default function ProfileScreen() {
           </Text>
         ) : (
           <Text style={styles.meta}>{t('profile.noRating')}</Text>
+        )}
+        {user.phone && user.phoneVerifiedAt ? (
+          <Text style={styles.meta}>
+            {formatRoPhoneDisplay(user.phone)} · {t('profile.phoneVerified')}
+          </Text>
+        ) : (
+          <Text style={styles.meta}>{t('profile.phone')}: {t('profile.phoneUnverified')}</Text>
         )}
         {isDemo ? <Text style={styles.demo}>{t('profile.demoNote')}</Text> : null}
         <View style={[styles.actions, isDesktop && styles.actionsRow]}>
