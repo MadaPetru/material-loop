@@ -1,14 +1,15 @@
 import { useState } from 'react';
-import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Button } from '@/components/ui/Button';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { ErrorBanner } from '@/components/ui/ErrorBanner';
 import { LanguageSelector } from '@/components/ui/LanguageSelector';
 import { Screen } from '@/components/ui/Screen';
 import { formatCityCounty } from '@/data/romania';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocale } from '@/contexts/LocaleContext';
-import { confirmAsync } from '@/lib/confirm';
 import { formatRoPhoneDisplay } from '@/lib/phone';
 import { toUserError } from '@/lib/userErrors';
 import { colors, fonts, radii, spacing } from '@/lib/theme';
@@ -18,7 +19,9 @@ export default function ProfileScreen() {
   const { user, signOut, deleteAccount, isDemo } = useAuth();
   const { t } = useLocale();
   const { isDesktop } = useResponsive();
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   if (!user) {
     return (
@@ -39,30 +42,16 @@ export default function ProfileScreen() {
     );
   }
 
-  const showError = (message: string) => {
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      window.alert(message);
-      return;
-    }
-    Alert.alert(t('common.error'), message);
-  };
-
-  const confirmDeleteAccount = async () => {
-    const ok = await confirmAsync({
-      title: t('profile.deleteAccountConfirmTitle'),
-      message: t('profile.deleteAccountConfirmBody'),
-      confirmText: t('profile.deleteAccountConfirmAction'),
-      cancelText: t('common.cancel'),
-      destructive: true,
-    });
-    if (!ok) return;
-
+  const runDelete = async () => {
     setDeleting(true);
+    setError(null);
     try {
       await deleteAccount();
+      setConfirmOpen(false);
       router.replace('/');
     } catch (e) {
-      showError(toUserError(e));
+      setConfirmOpen(false);
+      setError(toUserError(e));
     } finally {
       setDeleting(false);
     }
@@ -100,6 +89,7 @@ export default function ProfileScreen() {
           </Text>
         )}
         {isDemo ? <Text style={styles.demo}>{t('profile.demoNote')}</Text> : null}
+        {error ? <ErrorBanner message={error} /> : null}
         <View style={[styles.actions, isDesktop && styles.actionsRow]}>
           <Button
             label={t('profile.myListings')}
@@ -130,13 +120,30 @@ export default function ProfileScreen() {
         </Pressable>
         <View style={styles.dangerZone}>
           <Button
-            label={deleting ? t('profile.deletingAccount') : t('profile.deleteAccount')}
+            label={t('profile.deleteAccount')}
             variant="danger"
-            onPress={confirmDeleteAccount}
+            onPress={() => {
+              setError(null);
+              setConfirmOpen(true);
+            }}
             disabled={deleting}
           />
         </View>
       </View>
+
+      <ConfirmDialog
+        visible={confirmOpen}
+        title={t('profile.deleteAccountConfirmTitle')}
+        message={t('profile.deleteAccountConfirmBody')}
+        confirmLabel={deleting ? t('profile.deletingAccount') : t('profile.deleteAccountConfirmAction')}
+        cancelLabel={t('common.cancel')}
+        destructive
+        busy={deleting}
+        onCancel={() => {
+          if (!deleting) setConfirmOpen(false);
+        }}
+        onConfirm={runDelete}
+      />
     </Screen>
   );
 }
