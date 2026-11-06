@@ -36,25 +36,35 @@ function client() {
 /** Scrub profile + hide listings when the Edge Function is unavailable. */
 async function softDeleteOwnAccount(sb: ReturnType<typeof client>, userId: string) {
   const now = new Date().toISOString();
+
   const { error: listingError } = await sb
     .from('listings')
     .update({ status: 'removed', updated_at: now })
     .eq('seller_id', userId);
-  if (listingError) return false;
+  if (listingError) throw new Error(listingError.message);
 
-  const { error: profileError } = await sb
+  await sb.from('favorites').delete().eq('user_id', userId);
+
+  const scrub = {
+    display_name: 'Cont șters',
+    email: `deleted-${userId}@deleted.local`,
+    phone: null as string | null,
+    bio: null as string | null,
+    avatar_url: null as string | null,
+    deactivated_at: now,
+  };
+
+  let { error: profileError } = await sb
     .from('profiles')
-    .update({
-      display_name: 'Cont șters',
-      email: `deleted-${userId}@deleted.local`,
-      phone: null,
-      phone_verified_at: null,
-      bio: null,
-      avatar_url: null,
-      deactivated_at: now,
-    })
+    .update({ ...scrub, phone_verified_at: null })
     .eq('id', userId);
-  return !profileError;
+
+  // Migration 006 may not be applied yet — retry without phone_verified_at.
+  if (profileError && /phone_verified_at/i.test(profileError.message)) {
+    ({ error: profileError } = await sb.from('profiles').update(scrub).eq('id', userId));
+  }
+
+  if (profileError) throw new Error(profileError.message);
 }
 
 function displayNameFromUser(user: User) {
@@ -333,24 +343,29 @@ export const supabaseDb = {
 
     // Prefer Edge Function (service role) for hard Auth deletion.
     const { data, error } = await sb.functions.invoke('delete-account', { body: {} });
-    if (!error) {
+    const payloadError =
+      data && typeof data === 'object' && data !== null && 'error' in data
+        ? String((data as { error: unknown }).error)
+        : null;
+
+    if (!error && !payloadError) {
       await sb.auth.signOut();
       return;
     }
 
-    const softOk = await softDeleteOwnAccount(sb, userId);
-    if (softOk) {
+    // Function missing / failed — scrub data with the user's own session, then sign out.
+    try {
+      await softDeleteOwnAccount(sb, userId);
       await sb.auth.signOut();
-      return;
+    } catch (softError) {
+      const softMessage = softError instanceof Error ? softError.message : '';
+      throw new Error(
+        softMessage ||
+          payloadError ||
+          error?.message ||
+          'Ștergerea contului a eșuat. Asigură-te că funcția delete-account e deploy-ată pe Supabase.',
+      );
     }
-
-    const detail =
-      (data && typeof data === 'object' && 'error' in data && String((data as { error: unknown }).error)) ||
-      error.message;
-    throw new Error(
-      detail ||
-        'Ștergerea contului a eșuat. Asigură-te că funcția delete-account e deploy-ată pe Supabase.',
-    );
   },
 
   async getProfile(userId: string) {

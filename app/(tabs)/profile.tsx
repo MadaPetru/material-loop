@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -8,6 +8,7 @@ import { Screen } from '@/components/ui/Screen';
 import { formatCityCounty } from '@/data/romania';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocale } from '@/contexts/LocaleContext';
+import { confirmAsync } from '@/lib/confirm';
 import { formatRoPhoneDisplay } from '@/lib/phone';
 import { toUserError } from '@/lib/userErrors';
 import { colors, fonts, radii, spacing } from '@/lib/theme';
@@ -38,25 +39,33 @@ export default function ProfileScreen() {
     );
   }
 
-  const confirmDeleteAccount = () => {
-    Alert.alert(t('profile.deleteAccountConfirmTitle'), t('profile.deleteAccountConfirmBody'), [
-      { text: t('common.cancel'), style: 'cancel' },
-      {
-        text: t('profile.deleteAccountConfirmAction'),
-        style: 'destructive',
-        onPress: async () => {
-          setDeleting(true);
-          try {
-            await deleteAccount();
-            router.replace('/');
-          } catch (e) {
-            Alert.alert(t('common.error'), toUserError(e));
-          } finally {
-            setDeleting(false);
-          }
-        },
-      },
-    ]);
+  const showError = (message: string) => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.alert(message);
+      return;
+    }
+    Alert.alert(t('common.error'), message);
+  };
+
+  const confirmDeleteAccount = async () => {
+    const ok = await confirmAsync({
+      title: t('profile.deleteAccountConfirmTitle'),
+      message: t('profile.deleteAccountConfirmBody'),
+      confirmText: t('profile.deleteAccountConfirmAction'),
+      cancelText: t('common.cancel'),
+      destructive: true,
+    });
+    if (!ok) return;
+
+    setDeleting(true);
+    try {
+      await deleteAccount();
+      router.replace('/');
+    } catch (e) {
+      showError(toUserError(e));
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return (
