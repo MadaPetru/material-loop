@@ -81,7 +81,13 @@ export interface Profile {
   displayName: string;
   avatarUrl: string | null;
   accountType: AccountType;
+  /**
+   * Primary role (legacy / label). Prefer `roles` + entitlements for access checks.
+   * Kept in sync as primaryRole(roles).
+   */
   role: UserRole;
+  /** Effective roles — entitlements are the union of these. Multi-role ready. */
+  roles: UserRole[];
   cityId: string | null;
   phone: string | null;
   /** Set only after SMS OTP verification succeeds. */

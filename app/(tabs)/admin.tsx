@@ -17,7 +17,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLocale } from '@/contexts/LocaleContext';
 import { marketplace } from '@/lib/api/marketplace';
 import { buildAdminUserMailto } from '@/lib/contact';
-import { isAdmin } from '@/lib/entitlements';
+import { resolveEntitlements } from '@/lib/entitlements';
 import { toUserError } from '@/lib/userErrors';
 import { colors, fonts, layout, radii, spacing } from '@/lib/theme';
 import { useResponsive } from '@/lib/useResponsive';
@@ -29,7 +29,7 @@ type PendingAction =
   | null;
 
 export default function AdminScreen() {
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const { t, locale } = useLocale();
   const { contentPad, isDesktop } = useResponsive();
   const [users, setUsers] = useState<Profile[]>([]);
@@ -40,7 +40,11 @@ export default function AdminScreen() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingAction>(null);
 
-  const allowed = isAdmin(user);
+  const allowed = can('admin.panel');
+  const canReadUsers = can('admin.users.read');
+  const canManageUsers = can('admin.users.manage');
+  const canEmailUsers = can('admin.users.email');
+  const canSeeAnalytics = can('admin.analytics');
 
   const load = useCallback(async () => {
     if (!allowed) {
@@ -50,10 +54,8 @@ export default function AdminScreen() {
     setLoading(true);
     setError(null);
     try {
-      const [list, stats] = await Promise.all([
-        marketplace.adminListUsers(),
-        marketplace.adminGetAnalytics(),
-      ]);
+      const list = canReadUsers ? await marketplace.adminListUsers() : [];
+      const stats = canSeeAnalytics ? await marketplace.adminGetAnalytics() : null;
       setUsers(list);
       setAnalytics(stats);
     } catch (e) {
@@ -61,7 +63,7 @@ export default function AdminScreen() {
     } finally {
       setLoading(false);
     }
-  }, [allowed]);
+  }, [allowed, canReadUsers, canSeeAnalytics]);
 
   useFocusEffect(
     useCallback(() => {
@@ -184,7 +186,7 @@ export default function AdminScreen() {
             <Text style={styles.sub}>{t('admin.sub')}</Text>
             {error ? <ErrorBanner message={error} /> : null}
 
-            {analytics ? (
+            {canSeeAnalytics && analytics ? (
               <View style={styles.stats}>
                 <Stat label={t('admin.statUsers')} value={String(analytics.usersTotal)} />
                 <Stat label={t('admin.statActive')} value={String(analytics.usersActive)} />
@@ -219,6 +221,7 @@ export default function AdminScreen() {
         renderItem={({ item }) => {
           const self = item.id === user.id;
           const busy = busyId === item.id;
+          const itemEntitlements = resolveEntitlements(item.roles);
           return (
             <View style={[styles.card, item.deactivatedAt ? styles.cardMuted : null]}>
               <View style={styles.cardTop}>
@@ -229,21 +232,28 @@ export default function AdminScreen() {
                   </Text>
                   <Text style={styles.meta}>{item.email}</Text>
                   <Text style={styles.meta}>
-                    {item.role === 'admin' ? t('admin.roleAdmin') : t('admin.roleUser')}
-                    {item.deactivatedAt ? ` · ${t('admin.statusDeactivated')}` : ` · ${t('admin.statusActive')}`}
+                    {item.roles.join(', ')}
+                    {item.deactivatedAt
+                      ? ` · ${t('admin.statusDeactivated')}`
+                      : ` · ${t('admin.statusActive')}`}
+                  </Text>
+                  <Text style={styles.entitlements} numberOfLines={2}>
+                    {itemEntitlements.join(' · ')}
                   </Text>
                 </View>
               </View>
               <View style={styles.cardActions}>
-                <Button
-                  label={t('admin.emailUser')}
-                  variant="secondary"
-                  compact
-                  onPress={() => emailUser(item)}
-                  disabled={busy || !item.email}
-                  style={styles.action}
-                />
-                {!self ? (
+                {canEmailUsers ? (
+                  <Button
+                    label={t('admin.emailUser')}
+                    variant="secondary"
+                    compact
+                    onPress={() => emailUser(item)}
+                    disabled={busy || !item.email}
+                    style={styles.action}
+                  />
+                ) : null}
+                {canManageUsers && !self ? (
                   <Button
                     label={item.role === 'admin' ? t('admin.makeUser') : t('admin.makeAdmin')}
                     variant="ghost"
@@ -259,7 +269,7 @@ export default function AdminScreen() {
                     style={styles.action}
                   />
                 ) : null}
-                {!self ? (
+                {canManageUsers && !self ? (
                   <Button
                     label={item.deactivatedAt ? t('admin.reactivate') : t('admin.deactivate')}
                     variant={item.deactivatedAt ? 'secondary' : 'danger'}
@@ -370,6 +380,12 @@ const styles = StyleSheet.create({
   cardTop: { flexDirection: 'row', gap: spacing.md },
   name: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.ink },
   meta: { fontFamily: fonts.sans, fontSize: 13, color: colors.inkMuted },
+  entitlements: {
+    fontFamily: fonts.sans,
+    fontSize: 11,
+    color: colors.inkFaint,
+    marginTop: 2,
+  },
   cardActions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   action: { flexGrow: 1, minWidth: 120 },
 });

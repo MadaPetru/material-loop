@@ -10,14 +10,13 @@ import { Screen } from '@/components/ui/Screen';
 import { formatCityCounty } from '@/data/romania';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocale } from '@/contexts/LocaleContext';
-import { isAdmin } from '@/lib/entitlements';
 import { formatRoPhoneDisplay } from '@/lib/phone';
 import { toUserError } from '@/lib/userErrors';
 import { colors, fonts, radii, spacing } from '@/lib/theme';
 import { useResponsive } from '@/lib/useResponsive';
 
 export default function ProfileScreen() {
-  const { user, signOut, deleteAccount, isDemo } = useAuth();
+  const { user, signOut, deleteAccount, isDemo, can } = useAuth();
   const { t } = useLocale();
   const { isDesktop } = useResponsive();
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -68,7 +67,7 @@ export default function ProfileScreen() {
         <Text style={styles.meta}>
           {user.cityId ? formatCityCounty(user.cityId) : t('profile.locationUnset')} ·{' '}
           {user.accountType === 'business' ? t('profile.business') : t('profile.individual')}
-          {isAdmin(user) ? ` · ${t('admin.roleAdmin')}` : ''}
+          {can('admin.panel') ? ` · ${t('admin.roleAdmin')}` : ''}
         </Text>
         {user.sellerRating != null ? (
           <Text style={styles.meta}>

@@ -5,7 +5,6 @@ import { DesktopNav } from '@/components/layout/DesktopNav';
 import { LanguageSelector } from '@/components/ui/LanguageSelector';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocale } from '@/contexts/LocaleContext';
-import { isAdmin } from '@/lib/entitlements';
 import { colors, fonts } from '@/lib/theme';
 import { useResponsive } from '@/lib/useResponsive';
 
@@ -19,8 +18,8 @@ function TabIcon(props: {
 export default function TabLayout() {
   const { isDesktop, isTablet } = useResponsive();
   const { t, locale } = useLocale();
-  const { user } = useAuth();
-  const showAdmin = isAdmin(user);
+  const { can } = useAuth();
+  const showAdmin = can('admin.panel');
   const hideTabBar = isDesktop;
 
   return (

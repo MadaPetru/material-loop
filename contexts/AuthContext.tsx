@@ -1,5 +1,12 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { marketplace } from '@/lib/api/marketplace';
+import {
+  hasAllEntitlements,
+  hasAnyEntitlement,
+  hasEntitlement,
+  resolveEntitlements,
+  type Entitlement,
+} from '@/lib/entitlements';
 import { getSupabase } from '@/lib/supabase';
 import { IS_DEMO } from '@/lib/config';
 import type { Profile } from '@/lib/types';
@@ -8,6 +15,12 @@ type AuthContextValue = {
   user: Profile | null;
   loading: boolean;
   isDemo: boolean;
+  /** Effective entitlements for the signed-in user (union of their roles). */
+  entitlements: Entitlement[];
+  /** Gate UI/actions: `can('admin.panel')`. */
+  can: (entitlement: Entitlement) => boolean;
+  canAny: (entitlements: readonly Entitlement[]) => boolean;
+  canAll: (entitlements: readonly Entitlement[]) => boolean;
   refresh: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, displayName: string) => Promise<void>;
@@ -75,11 +88,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [refresh]);
 
+  const entitlements = useMemo(
+    () => (user ? resolveEntitlements(user.roles) : []),
+    [user],
+  );
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
       loading,
       isDemo: marketplace.isDemo,
+      entitlements,
+      can: (entitlement) => hasEntitlement(user, entitlement),
+      canAny: (list) => hasAnyEntitlement(user, list),
+      canAll: (list) => hasAllEntitlements(user, list),
       refresh,
       signIn: async (email, password) => {
         const profile = await marketplace.signIn(email, password);
@@ -123,7 +145,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(null);
       },
     }),
-    [user, loading, refresh]
+    [user, loading, refresh, entitlements],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

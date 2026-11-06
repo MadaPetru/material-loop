@@ -3,12 +3,11 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { LanguageSelector } from '@/components/ui/LanguageSelector';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocale } from '@/contexts/LocaleContext';
-import { isAdmin } from '@/lib/entitlements';
 import { colors, fonts, radii, spacing } from '@/lib/theme';
 
 export function DesktopNav() {
   const pathname = usePathname();
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const { t } = useLocale();
 
   const links = [
@@ -23,7 +22,7 @@ export function DesktopNav() {
     { href: '/favorites', label: t('nav.favorites'), match: (p: string) => p.startsWith('/favorites') },
     { href: '/messages', label: t('nav.messages'), match: (p: string) => p.startsWith('/messages') },
     { href: '/contact', label: t('nav.contact'), match: (p: string) => p.startsWith('/contact') },
-    ...(isAdmin(user)
+    ...(can('admin.panel')
       ? [
           {
             href: '/admin',

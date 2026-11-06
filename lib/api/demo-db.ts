@@ -6,7 +6,7 @@ import { approximateCoords, daysFromNow, haversineKm } from '@/lib/geo';
 import { createId } from '@/lib/id';
 import { LISTING_EXPIRY_DAYS } from '@/lib/config';
 import { normalizeRoPhone } from '@/lib/phone';
-import { isAdmin } from '@/lib/entitlements';
+import { isAdmin, normalizeRoles, primaryRole, rolesAfterPrimaryChange } from '@/lib/entitlements';
 import type {
   AdminAnalytics,
   ChatMessage,
@@ -23,7 +23,7 @@ import type {
 } from '@/lib/types';
 import { otherParticipantId, withMeta } from './messaging-shared';
 
-const STORAGE_KEY = 'materialloop.demo.v4';
+const STORAGE_KEY = 'materialloop.demo.v5';
 
 /** Demo OTP always accepts this code (and any 6 digits after send). */
 export const DEMO_PHONE_OTP = '123456';
@@ -76,8 +76,14 @@ async function load() {
         }
         const parsed = JSON.parse(raw) as Partial<DemoState>;
         // Merge so older local demos still keep seed passwords / data shape.
+        const profiles = (parsed.profiles?.length ? parsed.profiles : defaults.profiles).map(
+          (p) => {
+            const roles = normalizeRoles(p.roles, p.role);
+            return { ...p, roles, role: primaryRole(roles) };
+          },
+        );
         memory = {
-          profiles: parsed.profiles?.length ? parsed.profiles : defaults.profiles,
+          profiles,
           listings: parsed.listings?.length ? parsed.listings : defaults.listings,
           photos: parsed.photos?.length ? parsed.photos : defaults.photos,
           favorites: parsed.favorites ?? [],
@@ -145,6 +151,7 @@ export const demoDb = {
       avatarUrl: null,
       accountType: 'individual',
       role: 'user',
+      roles: ['user'],
       cityId: 'bh-oradea',
       phone: null,
       phoneVerifiedAt: null,
@@ -229,7 +236,10 @@ export const demoDb = {
     const idx = state.profiles.findIndex((p) => p.id === targetUserId);
     if (idx < 0) throw new Error('Utilizator negăsit.');
     const next = { ...state.profiles[idx] };
-    if (patch.role !== undefined) next.role = patch.role;
+    if (patch.role !== undefined) {
+      next.roles = rolesAfterPrimaryChange(patch.role, next.roles);
+      next.role = primaryRole(next.roles);
+    }
     if (patch.deactivated === true) next.deactivatedAt = new Date().toISOString();
     if (patch.deactivated === false) next.deactivatedAt = null;
     state.profiles[idx] = next;
@@ -246,7 +256,7 @@ export const demoDb = {
       usersTotal: state.profiles.length,
       usersActive,
       usersDeactivated,
-      admins: state.profiles.filter((p) => p.role === 'admin' && !p.deactivatedAt).length,
+      admins: state.profiles.filter((p) => isAdmin(p)).length,
       listingsActive: state.listings.filter((l) => l.status === 'active').length,
       listingsTotal: state.listings.filter((l) => l.status !== 'removed').length,
       conversations: state.conversations.length,

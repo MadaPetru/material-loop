@@ -6,7 +6,7 @@ import { COUNTRY_RO, COUNTIES, CITIES, getCity } from '@/data/romania';
 import { createSessionFromUrl, getOAuthRedirectTo, oauthErrorMessage } from '@/lib/auth/oauth';
 import { approximateCoords, daysFromNow, haversineKm } from '@/lib/geo';
 import { LISTING_EXPIRY_DAYS } from '@/lib/config';
-import { isAdmin } from '@/lib/entitlements';
+import { isAdmin, primaryRole, rolesAfterPrimaryChange } from '@/lib/entitlements';
 import { normalizeRoPhone } from '@/lib/phone';
 import { getSupabase } from '@/lib/supabase';
 import type {
@@ -126,6 +126,7 @@ async function ensureProfile(userId: string, email: string, displayName?: string
     avatar_url: avatarUrl ?? null,
     account_type: 'individual',
     role: 'user',
+    roles: ['user'],
     city_id: city?.id ?? null,
     phone: null,
     phone_verified_at: null,
@@ -292,7 +293,12 @@ export const supabaseDb = {
     }
 
     const update: Record<string, unknown> = {};
-    if (patch.role !== undefined) update.role = patch.role;
+    if (patch.role !== undefined) {
+      const current = await fetchProfile(targetUserId);
+      const nextRoles = rolesAfterPrimaryChange(patch.role, current?.roles);
+      update.roles = nextRoles;
+      update.role = primaryRole(nextRoles);
+    }
     if (patch.deactivated === true) update.deactivated_at = new Date().toISOString();
     if (patch.deactivated === false) update.deactivated_at = null;
 
@@ -315,7 +321,7 @@ export const supabaseDb = {
       { count: totalListings, error: totalError },
       { count: conversations, error: convError },
     ] = await Promise.all([
-      sb.from('profiles').select('role, deactivated_at'),
+      sb.from('profiles').select('role, roles, deactivated_at'),
       sb.from('listings').select('*', { count: 'exact', head: true }).eq('status', 'active'),
       sb.from('listings').select('*', { count: 'exact', head: true }).neq('status', 'removed'),
       sb.from('conversations').select('*', { count: 'exact', head: true }),
@@ -325,13 +331,20 @@ export const supabaseDb = {
     if (totalError) throw new Error(totalError.message);
     if (convError) throw new Error(convError.message);
 
-    const rows = (profiles ?? []) as Array<{ role: string; deactivated_at: string | null }>;
+    const rows = (profiles ?? []) as Array<{
+      role: string;
+      roles?: string[] | null;
+      deactivated_at: string | null;
+    }>;
     const usersActive = rows.filter((p) => !p.deactivated_at).length;
     return {
       usersTotal: rows.length,
       usersActive,
       usersDeactivated: rows.length - usersActive,
-      admins: rows.filter((p) => p.role === 'admin' && !p.deactivated_at).length,
+      admins: rows.filter(
+        (p) =>
+          !p.deactivated_at && (p.role === 'admin' || (p.roles ?? []).includes('admin')),
+      ).length,
       listingsActive: activeListings ?? 0,
       listingsTotal: totalListings ?? 0,
       conversations: conversations ?? 0,
