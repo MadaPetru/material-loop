@@ -17,7 +17,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLocale } from '@/contexts/LocaleContext';
 import { marketplace } from '@/lib/api/marketplace';
 import { buildAdminUserMailto } from '@/lib/contact';
-import { hasRole, resolveEntitlements } from '@/lib/entitlements';
+import { hasEntitlement, resolveEntitlements } from '@/lib/entitlements';
 import { toUserError } from '@/lib/userErrors';
 import { colors, fonts, layout, radii, spacing } from '@/lib/theme';
 import { useResponsive } from '@/lib/useResponsive';
@@ -74,12 +74,14 @@ export default function AdminScreen() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return users;
-    return users.filter(
-      (u) =>
+    return users.filter((u) => {
+      const entitlements = resolveEntitlements(u.roles);
+      return (
         u.displayName.toLowerCase().includes(q) ||
         u.email.toLowerCase().includes(q) ||
-        u.roles.some((r) => r.includes(q)),
-    );
+        entitlements.some((e) => e.toLowerCase().includes(q))
+      );
+    });
   }, [users, query]);
 
   if (!user) {
@@ -218,6 +220,7 @@ export default function AdminScreen() {
           const self = item.id === user.id;
           const busy = busyId === item.id;
           const itemEntitlements = resolveEntitlements(item.roles);
+          const hasAdminPanel = hasEntitlement(item, 'admin.panel');
           return (
             <View style={[styles.card, item.deactivatedAt ? styles.cardMuted : null]}>
               <View style={styles.cardTop}>
@@ -228,7 +231,7 @@ export default function AdminScreen() {
                   </Text>
                   <Text style={styles.meta}>{item.email}</Text>
                   <Text style={styles.meta}>
-                    {item.roles.join(', ')}
+                    {hasAdminPanel ? t('admin.roleAdmin') : t('admin.roleUser')}
                     {item.deactivatedAt
                       ? ` · ${t('admin.statusDeactivated')}`
                       : ` · ${t('admin.statusActive')}`}
@@ -251,14 +254,14 @@ export default function AdminScreen() {
                 ) : null}
                 {canManageUsers && !self ? (
                   <Button
-                    label={hasRole(item.roles, 'admin') ? t('admin.makeUser') : t('admin.makeAdmin')}
+                    label={hasAdminPanel ? t('admin.makeUser') : t('admin.makeAdmin')}
                     variant="ghost"
                     compact
                     onPress={() =>
                       setPending({
                         type: 'admin',
                         user: item,
-                        setAdmin: !hasRole(item.roles, 'admin'),
+                        setAdmin: !hasAdminPanel,
                       })
                     }
                     disabled={busy}

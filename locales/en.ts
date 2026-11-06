@@ -210,7 +210,7 @@ const en: TranslationDict = {
     forbiddenTitle: 'Admins only',
     forbiddenSub: 'This area is reserved for MaterialLoop administrators.',
     usersSection: 'Users',
-    searchPlaceholder: 'Search by name, email, or role…',
+    searchPlaceholder: 'Search by name, email, or entitlement…',
     noUsers: 'No users match your search.',
     you: 'you',
     roleAdmin: 'Administrator',

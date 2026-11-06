@@ -6,7 +6,12 @@ import { approximateCoords, daysFromNow, haversineKm } from '@/lib/geo';
 import { createId } from '@/lib/id';
 import { LISTING_EXPIRY_DAYS } from '@/lib/config';
 import { normalizeRoPhone } from '@/lib/phone';
-import { hasRole, isAdmin, normalizeRoles, rolesWithAdmin } from '@/lib/entitlements';
+import {
+  assertEntitlement,
+  hasEntitlement,
+  normalizeRoles,
+  rolesWithAdmin,
+} from '@/lib/entitlements';
 import type {
   AdminAnalytics,
   ChatMessage,
@@ -207,15 +212,15 @@ export const demoDb = {
     return state.profiles[idx];
   },
 
-  async requireAdmin() {
+  async requireEntitlement(entitlement: Parameters<typeof assertEntitlement>[1]) {
     const state = await load();
     const me = state.profiles.find((p) => p.id === state.sessionUserId) ?? null;
-    if (!isAdmin(me)) throw new Error('Acces interzis. Doar administratorii pot face asta.');
+    assertEntitlement(me, entitlement);
     return me!;
   },
 
   async adminListUsers() {
-    await this.requireAdmin();
+    await this.requireEntitlement('admin.users.read');
     const state = await load();
     return [...state.profiles].sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
@@ -226,16 +231,7 @@ export const demoDb = {
     targetUserId: string,
     patch: { roles?: UserRole[]; setAdmin?: boolean; deactivated?: boolean },
   ) {
-    const admin = await this.requireAdmin();
-    const removingAdmin =
-      patch.setAdmin === false ||
-      (patch.roles !== undefined && !hasRole(patch.roles, 'admin'));
-    if (admin.id === targetUserId && removingAdmin) {
-      throw new Error('Nu îți poți elimina propriul rol de administrator.');
-    }
-    if (admin.id === targetUserId && patch.deactivated === true) {
-      throw new Error('Nu îți poți dezactiva propriul cont din panoul admin.');
-    }
+    const actor = await this.requireEntitlement('admin.users.manage');
     const state = await load();
     const idx = state.profiles.findIndex((p) => p.id === targetUserId);
     if (idx < 0) throw new Error('Utilizator negăsit.');
@@ -244,13 +240,24 @@ export const demoDb = {
     else if (patch.setAdmin !== undefined) next.roles = rolesWithAdmin(patch.setAdmin, next.roles);
     if (patch.deactivated === true) next.deactivatedAt = new Date().toISOString();
     if (patch.deactivated === false) next.deactivatedAt = null;
+
+    // Block removing your own admin.panel entitlement / self-deactivate.
+    if (actor.id === targetUserId) {
+      if (!hasEntitlement(next, 'admin.panel')) {
+        throw new Error('Nu îți poți elimina propriul drept de administrator.');
+      }
+      if (patch.deactivated === true) {
+        throw new Error('Nu îți poți dezactiva propriul cont din panoul admin.');
+      }
+    }
+
     state.profiles[idx] = next;
     await save();
     return next;
   },
 
   async adminGetAnalytics(): Promise<AdminAnalytics> {
-    await this.requireAdmin();
+    await this.requireEntitlement('admin.analytics');
     const state = await load();
     const usersActive = state.profiles.filter((p) => !p.deactivatedAt).length;
     const usersDeactivated = state.profiles.length - usersActive;
@@ -258,7 +265,7 @@ export const demoDb = {
       usersTotal: state.profiles.length,
       usersActive,
       usersDeactivated,
-      admins: state.profiles.filter((p) => isAdmin(p)).length,
+      admins: state.profiles.filter((p) => hasEntitlement(p, 'admin.panel')).length,
       listingsActive: state.listings.filter((l) => l.status === 'active').length,
       listingsTotal: state.listings.filter((l) => l.status !== 'removed').length,
       conversations: state.conversations.length,

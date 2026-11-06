@@ -15,9 +15,12 @@ type AuthContextValue = {
   user: Profile | null;
   loading: boolean;
   isDemo: boolean;
-  /** Effective entitlements for the signed-in user (union of their roles). */
+  /** Effective entitlements for the signed-in user (union of role entitlements). */
   entitlements: Entitlement[];
-  /** Gate UI/actions: `can('admin.panel')`. */
+  /**
+   * RBAC gate — check entitlements, never roles:
+   * `can('admin.panel')`, `can('listings.create')`, …
+   */
   can: (entitlement: Entitlement) => boolean;
   canAny: (entitlements: readonly Entitlement[]) => boolean;
   canAll: (entitlements: readonly Entitlement[]) => boolean;

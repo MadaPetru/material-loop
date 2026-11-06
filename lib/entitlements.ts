@@ -1,7 +1,7 @@
 import type { Profile, UserRole } from '@/lib/types';
 
 /**
- * Capability catalog. UI and APIs should gate on entitlements, not role names.
+ * Capability catalog. UI and APIs MUST gate on entitlements, never on role names.
  * Add a new entitlement here, then attach it to one or more roles in ROLE_DEFINITIONS.
  */
 export const ENTITLEMENTS = [
@@ -27,8 +27,8 @@ export type RoleDefinition = {
 };
 
 /**
- * Single place to configure what each role can do.
- * Want a role to see a button? Add the entitlement here (and gate the button with `can(...)`).
+ * Role → entitlements map (assignment config only).
+ * Access checks go through hasEntitlement / can(...), not ROLE_DEFINITIONS directly.
  */
 export const ROLE_DEFINITIONS: Record<UserRole, RoleDefinition> = {
   user: {
@@ -67,12 +67,8 @@ export function normalizeRoles(input?: UserRole | UserRole[] | null): UserRole[]
   return unique.length ? unique : ['user'];
 }
 
-export function hasRole(roles: UserRole[] | null | undefined, role: UserRole) {
-  return normalizeRoles(roles).includes(role);
-}
-
 /** Union of entitlements from all assigned roles. */
-export function resolveEntitlements(roles: UserRole[]): Entitlement[] {
+export function resolveEntitlements(roles: UserRole[] | null | undefined): Entitlement[] {
   const set = new Set<Entitlement>();
   for (const role of normalizeRoles(roles)) {
     const def = ROLE_DEFINITIONS[role];
@@ -82,13 +78,7 @@ export function resolveEntitlements(roles: UserRole[]): Entitlement[] {
   return Array.from(set);
 }
 
-export function entitlementsForRole(role: UserRole | null | undefined): readonly Entitlement[] {
-  if (!role) return ROLE_DEFINITIONS.user.entitlements;
-  return ROLE_DEFINITIONS[role]?.entitlements ?? ROLE_DEFINITIONS.user.entitlements;
-}
-
 type EntitlementSubject =
-  | UserRole
   | UserRole[]
   | Pick<Profile, 'roles' | 'deactivatedAt'>
   | null
@@ -96,12 +86,12 @@ type EntitlementSubject =
 
 function subjectRoles(subject: EntitlementSubject): UserRole[] {
   if (!subject) return [];
-  if (typeof subject === 'string') return normalizeRoles(subject);
   if (Array.isArray(subject)) return normalizeRoles(subject);
   if (subject.deactivatedAt) return [];
   return normalizeRoles(subject.roles);
 }
 
+/** RBAC access check — use this (or `can(...)` from Auth) everywhere. */
 export function hasEntitlement(subject: EntitlementSubject, entitlement: Entitlement): boolean {
   return resolveEntitlements(subjectRoles(subject)).includes(entitlement);
 }
@@ -122,12 +112,21 @@ export function hasAllEntitlements(
   return entitlements.every((e) => granted.has(e));
 }
 
-/** Convenience: admin panel access. Prefer `can('admin.panel')` in UI. */
-export function isAdmin(subject: EntitlementSubject) {
-  return hasEntitlement(subject, 'admin.panel');
+/** API guard: throws if the subject lacks the entitlement. */
+export function assertEntitlement(
+  subject: EntitlementSubject,
+  entitlement: Entitlement,
+  message = 'Acces interzis. Îți lipsește dreptul necesar.',
+): asserts subject is NonNullable<EntitlementSubject> {
+  if (!hasEntitlement(subject, entitlement)) {
+    throw new Error(message);
+  }
 }
 
-/** Promote / demote admin while keeping base `user` role. */
+/**
+ * Role mutation helper (admin tools). This changes roles so entitlements change.
+ * Never use this for access checks — use hasEntitlement / can(...).
+ */
 export function rolesWithAdmin(enabled: boolean, current?: UserRole[]): UserRole[] {
   if (enabled) return normalizeRoles([...(current ?? []), 'user', 'admin']);
   return ['user'];

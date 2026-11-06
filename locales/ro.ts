@@ -211,7 +211,7 @@ const ro: TranslationDict = {
     forbiddenTitle: 'Doar administratori',
     forbiddenSub: 'Această zonă este rezervată administratorilor MaterialLoop.',
     usersSection: 'Utilizatori',
-    searchPlaceholder: 'Caută după nume, email sau rol…',
+    searchPlaceholder: 'Caută după nume, email sau entitlement…',
     noUsers: 'Niciun utilizator nu corespunde căutării.',
     you: 'tu',
     roleAdmin: 'Administrator',

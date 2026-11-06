@@ -6,7 +6,13 @@ import { COUNTRY_RO, COUNTIES, CITIES, getCity } from '@/data/romania';
 import { createSessionFromUrl, getOAuthRedirectTo, oauthErrorMessage } from '@/lib/auth/oauth';
 import { approximateCoords, daysFromNow, haversineKm } from '@/lib/geo';
 import { LISTING_EXPIRY_DAYS } from '@/lib/config';
-import { hasRole, isAdmin, normalizeRoles, rolesWithAdmin } from '@/lib/entitlements';
+import {
+  assertEntitlement,
+  hasEntitlement,
+  normalizeRoles,
+  rolesWithAdmin,
+  type Entitlement,
+} from '@/lib/entitlements';
 import { normalizeRoPhone } from '@/lib/phone';
 import { getSupabase } from '@/lib/supabase';
 import type {
@@ -263,14 +269,14 @@ export const supabaseDb = {
     return mapProfile(data as DbProfile);
   },
 
-  async requireAdmin() {
+  async requireEntitlement(entitlement: Entitlement) {
     const me = await this.getSession();
-    if (!isAdmin(me)) throw new Error('Acces interzis. Doar administratorii pot face asta.');
+    assertEntitlement(me, entitlement);
     return me!;
   },
 
   async adminListUsers() {
-    await this.requireAdmin();
+    await this.requireEntitlement('admin.users.read');
     const { data, error } = await client()
       .from('profiles')
       .select('*')
@@ -283,25 +289,33 @@ export const supabaseDb = {
     targetUserId: string,
     patch: { roles?: UserRole[]; setAdmin?: boolean; deactivated?: boolean },
   ) {
-    const admin = await this.requireAdmin();
-    const removingAdmin =
-      patch.setAdmin === false ||
-      (patch.roles !== undefined && !hasRole(patch.roles, 'admin'));
-    if (admin.id === targetUserId && removingAdmin) {
-      throw new Error('Nu îți poți elimina propriul rol de administrator.');
-    }
-    if (admin.id === targetUserId && patch.deactivated === true) {
-      throw new Error('Nu îți poți dezactiva propriul cont din panoul admin.');
+    const actor = await this.requireEntitlement('admin.users.manage');
+    const current = await fetchProfile(targetUserId);
+    if (!current) throw new Error('Utilizator negăsit.');
+
+    let nextRoles = current.roles;
+    if (patch.roles !== undefined) nextRoles = normalizeRoles(patch.roles);
+    else if (patch.setAdmin !== undefined) nextRoles = rolesWithAdmin(patch.setAdmin, current.roles);
+
+    const nextDeactivatedAt =
+      patch.deactivated === true
+        ? new Date().toISOString()
+        : patch.deactivated === false
+          ? null
+          : current.deactivatedAt;
+
+    if (actor.id === targetUserId) {
+      if (!hasEntitlement({ roles: nextRoles, deactivatedAt: nextDeactivatedAt }, 'admin.panel')) {
+        throw new Error('Nu îți poți elimina propriul drept de administrator.');
+      }
+      if (patch.deactivated === true) {
+        throw new Error('Nu îți poți dezactiva propriul cont din panoul admin.');
+      }
     }
 
     const update: Record<string, unknown> = {};
-    if (patch.roles !== undefined) {
-      update.roles = normalizeRoles(patch.roles);
-    } else if (patch.setAdmin !== undefined) {
-      const current = await fetchProfile(targetUserId);
-      update.roles = rolesWithAdmin(patch.setAdmin, current?.roles);
-    }
-    if (patch.deactivated === true) update.deactivated_at = new Date().toISOString();
+    if (patch.roles !== undefined || patch.setAdmin !== undefined) update.roles = nextRoles;
+    if (patch.deactivated === true) update.deactivated_at = nextDeactivatedAt;
     if (patch.deactivated === false) update.deactivated_at = null;
 
     const { data, error } = await client()
@@ -315,7 +329,7 @@ export const supabaseDb = {
   },
 
   async adminGetAnalytics(): Promise<AdminAnalytics> {
-    await this.requireAdmin();
+    await this.requireEntitlement('admin.analytics');
     const sb = client();
     const [
       { data: profiles, error: profilesError },
@@ -342,8 +356,11 @@ export const supabaseDb = {
       usersTotal: rows.length,
       usersActive,
       usersDeactivated: rows.length - usersActive,
-      admins: rows.filter(
-        (p) => !p.deactivated_at && (p.roles ?? []).includes('admin'),
+      admins: rows.filter((p) =>
+        hasEntitlement(
+          { roles: (p.roles ?? []) as UserRole[], deactivatedAt: p.deactivated_at },
+          'admin.panel',
+        ),
       ).length,
       listingsActive: activeListings ?? 0,
       listingsTotal: totalListings ?? 0,
