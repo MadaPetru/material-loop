@@ -224,7 +224,6 @@ export default function CreateListingScreen() {
       <Text style={styles.brand}>{t('common.brand')}</Text>
       <Text style={styles.title}>{t('createListing.heading')}</Text>
       <Text style={styles.hint}>{t('createListing.hint')}</Text>
-      <ErrorBanner message={error} />
 
       <Input
         label={t('createListing.titleRequired')}
@@ -390,6 +389,9 @@ export default function CreateListingScreen() {
         ))}
       </View>
       <Button label={t('createListing.addPhotos')} variant="secondary" onPress={pickPhotos} />
+
+      {/* Near save actions so validation errors are visible without scrolling up. */}
+      <ErrorBanner message={error} />
 
       <Button
         label={busy ? t('createListing.publishing') : t('createListing.publish')}

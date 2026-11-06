@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -37,7 +37,19 @@ export default function MessagesScreen() {
   const [loadingThread, setLoadingThread] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [convQuery, setConvQuery] = useState('');
   const listRef = useRef<FlatList<ChatMessage>>(null);
+
+  const filteredConversations = useMemo(() => {
+    const q = convQuery.trim().toLowerCase();
+    if (!q) return conversations;
+    return conversations.filter((c) => {
+      const name = c.otherUser?.displayName?.toLowerCase() ?? '';
+      const title = c.listingTitle?.toLowerCase() ?? '';
+      const preview = c.lastMessageBody?.toLowerCase() ?? '';
+      return name.includes(q) || title.includes(q) || preview.includes(q);
+    });
+  }, [conversations, convQuery]);
 
   const loadConversations = useCallback(async () => {
     if (!user) return;
@@ -134,20 +146,31 @@ export default function MessagesScreen() {
       {showList ? (
         <View style={[styles.sidebar, isDesktop && styles.sidebarDesktop]}>
           <Text style={styles.heading}>{t('messages.title')}</Text>
+          <TextInput
+            value={convQuery}
+            onChangeText={setConvQuery}
+            placeholder={t('messages.searchPlaceholder')}
+            placeholderTextColor={colors.inkFaint}
+            style={styles.search}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
           <ErrorBanner message={error && !selectedId ? error : null} />
           {loadingList ? (
             <ActivityIndicator color={colors.brand} style={{ marginTop: 24 }} />
           ) : (
             <FlatList
-              data={conversations}
+              data={filteredConversations}
               keyExtractor={(item) => item.id}
               contentContainerStyle={{ paddingBottom: 32, flexGrow: 1 }}
               ListEmptyComponent={
                 <EmptyState
-                  title={t('messages.emptyTitle')}
-                  subtitle={t('messages.emptySub')}
-                  actionLabel={t('favorites.findMaterials')}
-                  onAction={() => router.push('/search')}
+                  title={convQuery.trim() ? t('messages.noSearchResults') : t('messages.emptyTitle')}
+                  subtitle={
+                    convQuery.trim() ? t('messages.noSearchResultsSub') : t('messages.emptySub')
+                  }
+                  actionLabel={convQuery.trim() ? undefined : t('favorites.findMaterials')}
+                  onAction={convQuery.trim() ? undefined : () => router.push('/search')}
                 />
               }
               renderItem={({ item }) => {
@@ -309,8 +332,19 @@ const styles = StyleSheet.create({
     fontSize: 24,
     color: colors.ink,
     padding: spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.line,
+    paddingBottom: spacing.sm,
+  },
+  search: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.bg,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    fontFamily: fonts.sans,
+    color: colors.ink,
   },
   convRow: {
     flexDirection: 'row',

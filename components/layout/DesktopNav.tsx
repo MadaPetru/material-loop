@@ -72,7 +72,12 @@ export function DesktopNav() {
             </Text>
           </Pressable>
         ) : (
-          <Pressable style={styles.loginBtn} onPress={() => router.push('/(auth)/login')}>
+          <Pressable
+            style={styles.loginBtn}
+            onPress={() => router.push('/(auth)/login')}
+            accessibilityRole="link"
+            accessibilityLabel={t('nav.login')}
+          >
             <Text style={styles.loginText}>{t('nav.login')}</Text>
           </Pressable>
         )}

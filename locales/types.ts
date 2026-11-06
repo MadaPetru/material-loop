@@ -53,8 +53,11 @@ export type TranslationDict = {
     resetFilters: string;
     searching: string;
     results: string;
+    resultsRange: string;
+    loadMore: string;
     emptyTitle: string;
     emptySub: string;
+    emptyFilteredSub: string;
   };
   sell: {
     eyebrow: string;
@@ -117,6 +120,9 @@ export type TranslationDict = {
     gateSub: string;
     emptyTitle: string;
     emptySub: string;
+    searchPlaceholder: string;
+    noSearchResults: string;
+    noSearchResultsSub: string;
     selectConversation: string;
     firstMessageHint: string;
     placeholder: string;
@@ -136,6 +142,7 @@ export type TranslationDict = {
     noRating: string;
     ratingLine: string;
     demoNote: string;
+    rolesLabel: string;
     editProfile: string;
     publishListing: string;
     signOut: string;
@@ -177,7 +184,14 @@ export type TranslationDict = {
     gateSub: string;
     emptyTitle: string;
     emptySub: string;
+    emptyFiltered: string;
+    emptyFilteredSub: string;
     create: string;
+    filterActive: string;
+    filterDraft: string;
+    filterReserved: string;
+    filterSold: string;
+    filterExpired: string;
   };
   contact: {
     eyebrow: string;
@@ -233,6 +247,11 @@ export type TranslationDict = {
     pickRecipients: string;
     composeSelected: string;
     searchPlaceholder: string;
+    draftSearchPlaceholder: string;
+    roleSearchPlaceholder: string;
+    pageSummary: string;
+    prevPage: string;
+    nextPage: string;
     noUsers: string;
     noRoles: string;
     noAds: string;

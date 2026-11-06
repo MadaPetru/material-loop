@@ -52,14 +52,10 @@ export default function FavoritesScreen() {
     );
   }
 
-  if (loading) {
-    return <ActivityIndicator color={colors.brand} style={{ marginTop: 48 }} />;
-  }
-
   return (
     <FlatList
       style={styles.root}
-      data={items}
+      data={loading ? [] : items}
       key={`${columns}-${locale}`}
       numColumns={columns}
       keyExtractor={(item) => item.id}
@@ -70,12 +66,16 @@ export default function FavoritesScreen() {
       ]}
       columnWrapperStyle={columns > 1 ? styles.row : undefined}
       ListEmptyComponent={
-        <EmptyState
-          title={t('favorites.emptyTitle')}
-          subtitle={t('favorites.emptySub')}
-          actionLabel={t('favorites.findMaterials')}
-          onAction={() => router.push('/search')}
-        />
+        loading ? (
+          <ActivityIndicator color={colors.brand} style={{ marginTop: 48 }} />
+        ) : (
+          <EmptyState
+            title={t('favorites.emptyTitle')}
+            subtitle={t('favorites.emptySub')}
+            actionLabel={t('favorites.findMaterials')}
+            onAction={() => router.push('/search')}
+          />
+        )
       }
       renderItem={({ item }) => (
         <View style={columns > 1 ? styles.cardFlex : undefined}>
@@ -83,7 +83,7 @@ export default function FavoritesScreen() {
         </View>
       )}
       ListFooterComponent={
-        items.length ? (
+        !loading && items.length ? (
           <Button
             label={t('favorites.searchMore')}
             variant="secondary"

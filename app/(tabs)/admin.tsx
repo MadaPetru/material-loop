@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -28,12 +28,15 @@ import {
   hasEntitlement,
   resolveEntitlements,
 } from '@/lib/entitlements';
+import { clampPage, DEFAULT_PAGE_SIZE, pageCount, slicePage } from '@/lib/listPage';
 import { toUserError } from '@/lib/userErrors';
 import { colors, fonts, layout, radii, spacing } from '@/lib/theme';
 import { useResponsive } from '@/lib/useResponsive';
 import type { AdminAnalytics, MarketingAd, Profile, RoleDefinition } from '@/lib/types';
 
 type AdminSection = 'users' | 'roles' | 'marketing';
+type DraftStatusFilter = 'all' | 'active' | 'inactive';
+type UserStatusFilter = 'all' | 'active' | 'deactivated';
 type PendingAction =
   | { type: 'deactivate'; user: Profile; deactivated: boolean }
   | { type: 'deleteRole'; role: RoleDefinition }
@@ -80,6 +83,14 @@ export default function AdminScreen() {
   const [mailBody, setMailBody] = useState('');
   const [selectedMailIds, setSelectedMailIds] = useState<Set<string>>(new Set());
   const [recipientQuery, setRecipientQuery] = useState('');
+  const [recipientPage, setRecipientPage] = useState(1);
+  const [draftQuery, setDraftQuery] = useState('');
+  const [draftStatus, setDraftStatus] = useState<DraftStatusFilter>('all');
+  const [draftPage, setDraftPage] = useState(1);
+  const [pickDraftQuery, setPickDraftQuery] = useState('');
+  const [userStatus, setUserStatus] = useState<UserStatusFilter>('all');
+  const [userPage, setUserPage] = useState(1);
+  const [roleQuery, setRoleQuery] = useState('');
   const [pickDraftOpen, setPickDraftOpen] = useState(false);
 
   const [roleForm, setRoleForm] = useState<{
@@ -145,8 +156,10 @@ export default function AdminScreen() {
 
   const filteredUsers = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return users;
     return users.filter((u) => {
+      if (userStatus === 'active' && u.deactivatedAt) return false;
+      if (userStatus === 'deactivated' && !u.deactivatedAt) return false;
+      if (!q) return true;
       const entitlements = resolveEntitlements(u.roles);
       return (
         u.displayName.toLowerCase().includes(q) ||
@@ -155,7 +168,12 @@ export default function AdminScreen() {
         entitlements.some((e) => e.toLowerCase().includes(q))
       );
     });
-  }, [users, query]);
+  }, [users, query, userStatus]);
+
+  const pagedUsers = useMemo(
+    () => slicePage(filteredUsers, userPage),
+    [filteredUsers, userPage],
+  );
 
   /** LIKE-style recipient filter: substring match on email / name. */
   const filteredRecipients = useMemo(() => {
@@ -168,6 +186,75 @@ export default function AdminScreen() {
         u.displayName.toLowerCase().includes(q),
     );
   }, [users, recipientQuery]);
+
+  const pagedRecipients = useMemo(
+    () => slicePage(filteredRecipients, recipientPage),
+    [filteredRecipients, recipientPage],
+  );
+
+  const filteredDrafts = useMemo(() => {
+    const q = draftQuery.trim().toLowerCase();
+    return ads.filter((ad) => {
+      if (draftStatus === 'active' && !ad.active) return false;
+      if (draftStatus === 'inactive' && ad.active) return false;
+      if (!q) return true;
+      return (
+        ad.title.toLowerCase().includes(q) ||
+        ad.body.toLowerCase().includes(q)
+      );
+    });
+  }, [ads, draftQuery, draftStatus]);
+
+  const pagedDrafts = useMemo(
+    () => slicePage(filteredDrafts, draftPage),
+    [filteredDrafts, draftPage],
+  );
+
+  const filteredRoles = useMemo(() => {
+    const q = roleQuery.trim().toLowerCase();
+    const list = roles.length ? roles : getRoleDefinitions();
+    if (!q) return list;
+    return list.filter(
+      (r) =>
+        r.id.toLowerCase().includes(q) ||
+        r.label.toLowerCase().includes(q) ||
+        r.description.toLowerCase().includes(q) ||
+        r.entitlements.some((e) => e.toLowerCase().includes(q)),
+    );
+  }, [roles, roleQuery]);
+
+  const pickableDrafts = useMemo(() => {
+    const q = pickDraftQuery.trim().toLowerCase();
+    return ads.filter((a) => {
+      if (!a.active) return false;
+      if (!q) return true;
+      return a.title.toLowerCase().includes(q) || a.body.toLowerCase().includes(q);
+    });
+  }, [ads, pickDraftQuery]);
+
+  useEffect(() => {
+    setUserPage((p) => clampPage(p, filteredUsers.length));
+  }, [filteredUsers.length]);
+
+  useEffect(() => {
+    setRecipientPage((p) => clampPage(p, filteredRecipients.length));
+  }, [filteredRecipients.length]);
+
+  useEffect(() => {
+    setDraftPage((p) => clampPage(p, filteredDrafts.length));
+  }, [filteredDrafts.length]);
+
+  useEffect(() => {
+    setUserPage(1);
+  }, [query, userStatus]);
+
+  useEffect(() => {
+    setRecipientPage(1);
+  }, [recipientQuery]);
+
+  useEffect(() => {
+    setDraftPage(1);
+  }, [draftQuery, draftStatus]);
 
   if (!user) {
     return (
@@ -401,6 +488,7 @@ export default function AdminScreen() {
 
       {activeSection === 'users' ? (
         <>
+          <Text style={styles.section}>{t('admin.usersSection')}</Text>
           <TextInput
             value={query}
             onChangeText={setQuery}
@@ -408,29 +496,63 @@ export default function AdminScreen() {
             placeholderTextColor={colors.inkFaint}
             style={styles.search}
           />
-          <Text style={styles.section}>{t('admin.usersSection')}</Text>
+          <View style={styles.filterRow}>
+            {(['all', 'active', 'deactivated'] as UserStatusFilter[]).map((f) => (
+              <Pressable
+                key={f}
+                onPress={() => setUserStatus(f)}
+                style={[styles.filterChip, userStatus === f && styles.filterChipOn]}
+              >
+                <Text style={[styles.filterChipText, userStatus === f && styles.filterChipTextOn]}>
+                  {f === 'all'
+                    ? t('common.all')
+                    : f === 'active'
+                      ? t('admin.statusActive')
+                      : t('admin.statusDeactivated')}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          <Text style={styles.meta}>
+            {t('admin.pageSummary', {
+              shown: String(pagedUsers.length),
+              total: String(filteredUsers.length),
+              page: String(clampPage(userPage, filteredUsers.length)),
+              pages: String(pageCount(filteredUsers.length)),
+            })}
+          </Text>
         </>
       ) : null}
 
       {activeSection === 'roles' ? (
-        <View style={styles.sectionHeaderRow}>
-          <Text style={styles.section}>{t('admin.rolesSection')}</Text>
-          {canManageRoles ? (
-            <Button
-              label={t('admin.createRole')}
-              compact
-              onPress={() =>
-                setRoleForm({
-                  id: '',
-                  label: '',
-                  description: '',
-                  entitlements: ['app.access'],
-                  editing: false,
-                })
-              }
-            />
-          ) : null}
-        </View>
+        <>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.section}>{t('admin.rolesSection')}</Text>
+            {canManageRoles ? (
+              <Button
+                label={t('admin.createRole')}
+                compact
+                onPress={() =>
+                  setRoleForm({
+                    id: '',
+                    label: '',
+                    description: '',
+                    entitlements: ['app.access'],
+                    editing: false,
+                  })
+                }
+              />
+            ) : null}
+          </View>
+          <TextInput
+            value={roleQuery}
+            onChangeText={setRoleQuery}
+            placeholder={t('admin.roleSearchPlaceholder')}
+            placeholderTextColor={colors.inkFaint}
+            autoCapitalize="none"
+            style={styles.search}
+          />
+        </>
       ) : null}
 
       {activeSection === 'marketing' ? (
@@ -485,12 +607,12 @@ export default function AdminScreen() {
                   style={styles.action}
                 />
               </View>
-              <View style={{ gap: spacing.sm, maxHeight: 220 }}>
+              <View style={{ gap: spacing.sm, maxHeight: 260 }}>
                 <ScrollView nestedScrollEnabled>
                   {!filteredRecipients.length ? (
                     <Text style={styles.empty}>{t('admin.noRecipientsMatch')}</Text>
                   ) : (
-                    filteredRecipients.map((profile) => {
+                    pagedRecipients.map((profile) => {
                       const on = selectedMailIds.has(profile.id);
                       return (
                         <Pressable
@@ -518,6 +640,19 @@ export default function AdminScreen() {
                   )}
                 </ScrollView>
               </View>
+              <Pager
+                page={recipientPage}
+                total={filteredRecipients.length}
+                onChange={setRecipientPage}
+                labelPrev={t('admin.prevPage')}
+                labelNext={t('admin.nextPage')}
+                summary={t('admin.pageSummary', {
+                  shown: String(pagedRecipients.length),
+                  total: String(filteredRecipients.length),
+                  page: String(clampPage(recipientPage, filteredRecipients.length)),
+                  pages: String(pageCount(filteredRecipients.length)),
+                })}
+              />
             </>
           ) : (
             <Text style={styles.hint}>{t('admin.outreachNeedsUsersRead')}</Text>
@@ -540,6 +675,31 @@ export default function AdminScreen() {
             ) : null}
           </View>
           <Text style={styles.hint}>{t('admin.marketingTemplatesHint')}</Text>
+          <TextInput
+            value={draftQuery}
+            onChangeText={setDraftQuery}
+            placeholder={t('admin.draftSearchPlaceholder')}
+            placeholderTextColor={colors.inkFaint}
+            autoCapitalize="none"
+            style={styles.search}
+          />
+          <View style={styles.filterRow}>
+            {(['all', 'active', 'inactive'] as DraftStatusFilter[]).map((f) => (
+              <Pressable
+                key={f}
+                onPress={() => setDraftStatus(f)}
+                style={[styles.filterChip, draftStatus === f && styles.filterChipOn]}
+              >
+                <Text style={[styles.filterChipText, draftStatus === f && styles.filterChipTextOn]}>
+                  {f === 'all'
+                    ? t('common.all')
+                    : f === 'active'
+                      ? t('admin.adActive')
+                      : t('admin.adInactive')}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
         </View>
       ) : null}
 
@@ -549,10 +709,41 @@ export default function AdminScreen() {
 
   const listData =
     activeSection === 'users'
-      ? filteredUsers
+      ? pagedUsers
       : activeSection === 'roles'
-        ? roleOptions
-        : ads;
+        ? filteredRoles
+        : pagedDrafts;
+
+  const listFooter =
+    activeSection === 'users' ? (
+      <Pager
+        page={userPage}
+        total={filteredUsers.length}
+        onChange={setUserPage}
+        labelPrev={t('admin.prevPage')}
+        labelNext={t('admin.nextPage')}
+        summary={t('admin.pageSummary', {
+          shown: String(pagedUsers.length),
+          total: String(filteredUsers.length),
+          page: String(clampPage(userPage, filteredUsers.length)),
+          pages: String(pageCount(filteredUsers.length)),
+        })}
+      />
+    ) : activeSection === 'marketing' ? (
+      <Pager
+        page={draftPage}
+        total={filteredDrafts.length}
+        onChange={setDraftPage}
+        labelPrev={t('admin.prevPage')}
+        labelNext={t('admin.nextPage')}
+        summary={t('admin.pageSummary', {
+          shown: String(pagedDrafts.length),
+          total: String(filteredDrafts.length),
+          page: String(clampPage(draftPage, filteredDrafts.length)),
+          pages: String(pageCount(filteredDrafts.length)),
+        })}
+      />
+    ) : undefined;
 
   return (
     <View style={styles.root}>
@@ -571,13 +762,13 @@ export default function AdminScreen() {
             <Text style={styles.empty}>
               {activeSection === 'users' ? t('admin.noUsers') : t('admin.noRoles')}
             </Text>
-          ) : !loading && activeSection === 'marketing' && !ads.length ? (
+          ) : !loading && activeSection === 'marketing' && !filteredDrafts.length ? (
             <Text style={styles.empty}>{t('admin.noAds')}</Text>
           ) : (
             <View />
           )
         }
-        ListFooterComponent={undefined}
+        ListFooterComponent={listFooter}
         renderItem={({ item }) => {
           if (activeSection === 'users') {
             const profile = item as Profile;
@@ -808,6 +999,14 @@ export default function AdminScreen() {
             <Text style={styles.hint}>
               {t('admin.pickDraftHint', { count: String(selectedMailIds.size) })}
             </Text>
+            <TextInput
+              value={pickDraftQuery}
+              onChangeText={setPickDraftQuery}
+              placeholder={t('admin.draftSearchPlaceholder')}
+              placeholderTextColor={colors.inkFaint}
+              autoCapitalize="none"
+              style={styles.search}
+            />
             <ScrollView style={{ maxHeight: 360 }}>
               <Pressable
                 style={styles.card}
@@ -816,7 +1015,7 @@ export default function AdminScreen() {
                 <Text style={styles.name}>{t('admin.composeBlank')}</Text>
                 <Text style={styles.meta}>{t('admin.composeBlankHint')}</Text>
               </Pressable>
-              {ads.filter((a) => a.active).map((draft) => (
+              {pickableDrafts.map((draft) => (
                 <Pressable
                   key={draft.id}
                   style={styles.card}
@@ -828,7 +1027,7 @@ export default function AdminScreen() {
                   </Text>
                 </Pressable>
               ))}
-              {!ads.filter((a) => a.active).length ? (
+              {!pickableDrafts.length ? (
                 <Text style={styles.empty}>{t('admin.noAds')}</Text>
               ) : null}
             </ScrollView>
@@ -1008,6 +1207,53 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
+function Pager({
+  page,
+  total,
+  onChange,
+  labelPrev,
+  labelNext,
+  summary,
+  pageSize = DEFAULT_PAGE_SIZE,
+}: {
+  page: number;
+  total: number;
+  onChange: (page: number) => void;
+  labelPrev: string;
+  labelNext: string;
+  summary: string;
+  pageSize?: number;
+}) {
+  if (total <= pageSize) {
+    return total > 0 ? <Text style={[styles.meta, { marginTop: spacing.sm }]}>{summary}</Text> : null;
+  }
+  const pages = pageCount(total, pageSize);
+  const safe = clampPage(page, total, pageSize);
+  return (
+    <View style={styles.pager}>
+      <Text style={styles.meta}>{summary}</Text>
+      <View style={styles.cardActions}>
+        <Button
+          label={labelPrev}
+          variant="ghost"
+          compact
+          disabled={safe <= 1}
+          onPress={() => onChange(safe - 1)}
+          style={styles.action}
+        />
+        <Button
+          label={labelNext}
+          variant="ghost"
+          compact
+          disabled={safe >= pages}
+          onPress={() => onChange(safe + 1)}
+          style={styles.action}
+        />
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   center: { flex: 1, justifyContent: 'center', padding: spacing.xl },
@@ -1122,6 +1368,19 @@ const styles = StyleSheet.create({
     borderColor: colors.brand,
     backgroundColor: colors.brandSoft,
   },
+  filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  filterChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.bgElevated,
+  },
+  filterChipOn: { backgroundColor: colors.brandSoft, borderColor: colors.brand },
+  filterChipText: { fontFamily: fonts.sansMedium, fontSize: 13, color: colors.inkMuted },
+  filterChipTextOn: { color: colors.brandDark, fontFamily: fonts.sansBold },
+  pager: { marginTop: spacing.md, marginBottom: spacing.xl, gap: spacing.sm },
   groupLabel: {
     fontFamily: fonts.sansBold,
     fontSize: 13,

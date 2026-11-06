@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -100,10 +100,13 @@ function FilterPanel({
   );
 }
 
+const PAGE_SIZE = 24;
+
 export default function SearchScreen() {
   const { t, locale } = useLocale();
   const { columns, isDesktop, contentPad } = useResponsive();
   const [query, setQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [countyId, setCountyId] = useState<string | null>(null);
   const [cityId, setCityId] = useState<string | null>(null);
   const [categoryId, setCategoryId] = useState<string | undefined>();
@@ -111,14 +114,21 @@ export default function SearchScreen() {
   const [freeOnly, setFreeOnly] = useState(false);
   const [items, setItems] = useState<ListingWithRelations[]>([]);
   const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
 
-  const filters: SearchFilters = useMemo(() => {
+  useEffect(() => {
+    const handle = setTimeout(() => setDebouncedQuery(query.trim()), 350);
+    return () => clearTimeout(handle);
+  }, [query]);
+
+  const baseFilters: Omit<SearchFilters, 'page'> = useMemo(() => {
     const city = cityId ? getCity(cityId) : null;
     const countryWide = radiusKm == null && !countyId && !cityId;
     return {
-      query: query.trim() || undefined,
+      query: debouncedQuery || undefined,
       categoryId,
       countyId: countyId || undefined,
       cityId: cityId || undefined,
@@ -128,41 +138,56 @@ export default function SearchScreen() {
       centerLat: city?.lat,
       centerLng: city?.lng,
       sort: city ? 'nearest' : 'newest',
-      pageSize: 40,
+      pageSize: PAGE_SIZE,
     };
-  }, [query, categoryId, countyId, cityId, radiusKm, freeOnly]);
+  }, [debouncedQuery, categoryId, countyId, cityId, radiusKm, freeOnly]);
 
   const activeFilterCount =
     (categoryId ? 1 : 0) +
     (freeOnly ? 1 : 0) +
     (radiusKm != null ? 1 : 0) +
     (countyId ? 1 : 0) +
-    (cityId ? 1 : 0);
+    (cityId ? 1 : 0) +
+    (debouncedQuery ? 1 : 0);
 
-  const runSearch = async () => {
-    setLoading(true);
-    try {
-      const res = await marketplace.search(filters);
-      setItems(res.items);
-      setTotal(res.total);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const runSearch = useCallback(
+    async (nextPage = 1, append = false) => {
+      if (append) setLoadingMore(true);
+      else setLoading(true);
+      try {
+        const res = await marketplace.search({ ...baseFilters, page: nextPage });
+        setTotal(res.total);
+        setPage(nextPage);
+        setItems((prev) => (append ? [...prev, ...res.items] : res.items));
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
+      }
+    },
+    [baseFilters],
+  );
 
   useEffect(() => {
     let active = true;
     setLoading(true);
-    marketplace.search(filters).then((res) => {
+    marketplace.search({ ...baseFilters, page: 1 }).then((res) => {
       if (!active) return;
       setItems(res.items);
       setTotal(res.total);
+      setPage(1);
       setLoading(false);
     });
     return () => {
       active = false;
     };
-  }, [filters]);
+  }, [baseFilters]);
+
+  const hasMore = items.length < total;
+
+  const loadMore = () => {
+    if (loading || loadingMore || !hasMore) return;
+    void runSearch(page + 1, true);
+  };
 
   const categoryOptions = [
     { id: undefined as string | undefined, name: t('common.all') },
@@ -170,6 +195,8 @@ export default function SearchScreen() {
   ];
 
   const clearFilters = () => {
+    setQuery('');
+    setDebouncedQuery('');
     setCategoryId(undefined);
     setFreeOnly(false);
     setRadiusKm(null);
@@ -232,7 +259,7 @@ export default function SearchScreen() {
                 placeholder={t('search.placeholder')}
                 value={query}
                 onChangeText={setQuery}
-                onSubmitEditing={runSearch}
+                onSubmitEditing={() => void runSearch(1, false)}
                 returnKeyType="search"
               />
             </View>
@@ -240,7 +267,7 @@ export default function SearchScreen() {
               <Button
                 label={t('common.search')}
                 compact
-                onPress={runSearch}
+                onPress={() => void runSearch(1, false)}
                 style={styles.searchBtn}
               />
             ) : null}
@@ -258,7 +285,12 @@ export default function SearchScreen() {
                   {activeFilterCount ? ` · ${activeFilterCount}` : ''}
                 </Text>
               </Pressable>
-              <Button label={t('common.search')} compact onPress={runSearch} style={{ flex: 1 }} />
+              <Button
+                label={t('common.search')}
+                compact
+                onPress={() => void runSearch(1, false)}
+                style={{ flex: 1 }}
+              />
             </View>
           ) : null}
 
@@ -277,7 +309,7 @@ export default function SearchScreen() {
                   compact
                   onPress={() => {
                     setShowFilters(false);
-                    runSearch();
+                    void runSearch(1, false);
                   }}
                 />
               </View>
@@ -302,7 +334,12 @@ export default function SearchScreen() {
           ) : null}
 
           <Text style={styles.count}>
-            {loading ? t('search.searching') : t('search.results', { count: total })}
+            {loading && !items.length
+              ? t('search.searching')
+              : t('search.resultsRange', {
+                  shown: String(items.length),
+                  total: String(total),
+                })}
           </Text>
         </View>
 
@@ -320,8 +357,31 @@ export default function SearchScreen() {
             ]}
             columnWrapperStyle={columns > 1 ? styles.row : undefined}
             keyboardShouldPersistTaps="handled"
+            onEndReached={loadMore}
+            onEndReachedThreshold={0.4}
             ListEmptyComponent={
-            <EmptyState title={t('search.emptyTitle')} subtitle={t('search.emptySub')} />
+              <EmptyState
+                title={t('search.emptyTitle')}
+                subtitle={
+                  activeFilterCount
+                    ? t('search.emptyFilteredSub')
+                    : t('search.emptySub')
+                }
+                actionLabel={activeFilterCount ? t('search.resetFilters') : undefined}
+                onAction={activeFilterCount ? clearFilters : undefined}
+              />
+            }
+            ListFooterComponent={
+              loadingMore ? (
+                <ActivityIndicator color={colors.brand} style={{ marginVertical: 16 }} />
+              ) : hasMore && items.length ? (
+                <Button
+                  label={t('search.loadMore')}
+                  variant="secondary"
+                  onPress={loadMore}
+                  style={{ marginTop: spacing.md }}
+                />
+              ) : undefined
             }
             renderItem={({ item }) => (
               <View style={columns > 1 ? styles.cardFlex : null}>

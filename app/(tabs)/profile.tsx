@@ -78,7 +78,7 @@ export default function ProfileScreen() {
           {can('admin.panel') ? ` · ${t('admin.roleAdmin')}` : ''}
         </Text>
         <Text style={styles.meta}>
-          {t('admin.usersSection')}: {user.roles.join(', ')}
+          {t('profile.rolesLabel')}: {user.roles.join(', ')}
         </Text>
         {can('admin.panel') ? (
           <Button

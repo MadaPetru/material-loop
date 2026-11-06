@@ -4,6 +4,7 @@ import { colors, fonts, radii, spacing } from '@/lib/theme';
 export function Input({
   label,
   error,
+  accessibilityLabel,
   ...props
 }: TextInputProps & { label?: string; error?: string }) {
   return (
@@ -11,6 +12,7 @@ export function Input({
       {label ? <Text style={styles.label}>{label}</Text> : null}
       <TextInput
         placeholderTextColor={colors.inkFaint}
+        accessibilityLabel={accessibilityLabel ?? label}
         {...props}
         style={[styles.input, error ? styles.inputError : null, props.style]}
       />
