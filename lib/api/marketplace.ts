@@ -34,8 +34,10 @@ export const marketplace = {
   clearPhone: (userId: string) => api.clearPhone(userId),
   deleteAccount: (userId: string) => api.deleteAccount(userId),
   adminListUsers: () => api.adminListUsers(),
-  adminUpdateUser: (targetUserId: string, patch: { role?: UserRole; deactivated?: boolean }) =>
-    api.adminUpdateUser(targetUserId, patch),
+  adminUpdateUser: (
+    targetUserId: string,
+    patch: { roles?: UserRole[]; setAdmin?: boolean; deactivated?: boolean },
+  ) => api.adminUpdateUser(targetUserId, patch),
   adminGetAnalytics: () => api.adminGetAnalytics(),
   getProfile: (userId: string) => api.getProfile(userId),
   search: (filters?: SearchFilters) => api.search(filters),

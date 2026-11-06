@@ -6,7 +6,7 @@ import { COUNTRY_RO, COUNTIES, CITIES, getCity } from '@/data/romania';
 import { createSessionFromUrl, getOAuthRedirectTo, oauthErrorMessage } from '@/lib/auth/oauth';
 import { approximateCoords, daysFromNow, haversineKm } from '@/lib/geo';
 import { LISTING_EXPIRY_DAYS } from '@/lib/config';
-import { isAdmin, primaryRole, rolesAfterPrimaryChange } from '@/lib/entitlements';
+import { hasRole, isAdmin, normalizeRoles, rolesWithAdmin } from '@/lib/entitlements';
 import { normalizeRoPhone } from '@/lib/phone';
 import { getSupabase } from '@/lib/supabase';
 import type {
@@ -125,7 +125,6 @@ async function ensureProfile(userId: string, email: string, displayName?: string
     display_name: displayName || email.split('@')[0] || 'Utilizator',
     avatar_url: avatarUrl ?? null,
     account_type: 'individual',
-    role: 'user',
     roles: ['user'],
     city_id: city?.id ?? null,
     phone: null,
@@ -245,7 +244,7 @@ export const supabaseDb = {
     if (patch.avatarUrl !== undefined) update.avatar_url = patch.avatarUrl;
     if (patch.accountType !== undefined) update.account_type = patch.accountType;
     if (patch.cityId !== undefined) update.city_id = patch.cityId;
-    // Phone / role / deactivation are managed through dedicated flows.
+    // Phone / roles / deactivation are managed through dedicated flows.
     if (patch.bio !== undefined) update.bio = patch.bio;
     if (patch.lat != null && patch.lng != null) {
       update.location = toEwkt(patch.lat, patch.lng);
@@ -282,10 +281,13 @@ export const supabaseDb = {
 
   async adminUpdateUser(
     targetUserId: string,
-    patch: { role?: UserRole; deactivated?: boolean },
+    patch: { roles?: UserRole[]; setAdmin?: boolean; deactivated?: boolean },
   ) {
     const admin = await this.requireAdmin();
-    if (admin.id === targetUserId && patch.role === 'user') {
+    const removingAdmin =
+      patch.setAdmin === false ||
+      (patch.roles !== undefined && !hasRole(patch.roles, 'admin'));
+    if (admin.id === targetUserId && removingAdmin) {
       throw new Error('Nu îți poți elimina propriul rol de administrator.');
     }
     if (admin.id === targetUserId && patch.deactivated === true) {
@@ -293,11 +295,11 @@ export const supabaseDb = {
     }
 
     const update: Record<string, unknown> = {};
-    if (patch.role !== undefined) {
+    if (patch.roles !== undefined) {
+      update.roles = normalizeRoles(patch.roles);
+    } else if (patch.setAdmin !== undefined) {
       const current = await fetchProfile(targetUserId);
-      const nextRoles = rolesAfterPrimaryChange(patch.role, current?.roles);
-      update.roles = nextRoles;
-      update.role = primaryRole(nextRoles);
+      update.roles = rolesWithAdmin(patch.setAdmin, current?.roles);
     }
     if (patch.deactivated === true) update.deactivated_at = new Date().toISOString();
     if (patch.deactivated === false) update.deactivated_at = null;
@@ -321,7 +323,7 @@ export const supabaseDb = {
       { count: totalListings, error: totalError },
       { count: conversations, error: convError },
     ] = await Promise.all([
-      sb.from('profiles').select('role, roles, deactivated_at'),
+      sb.from('profiles').select('roles, deactivated_at'),
       sb.from('listings').select('*', { count: 'exact', head: true }).eq('status', 'active'),
       sb.from('listings').select('*', { count: 'exact', head: true }).neq('status', 'removed'),
       sb.from('conversations').select('*', { count: 'exact', head: true }),
@@ -332,7 +334,6 @@ export const supabaseDb = {
     if (convError) throw new Error(convError.message);
 
     const rows = (profiles ?? []) as Array<{
-      role: string;
       roles?: string[] | null;
       deactivated_at: string | null;
     }>;
@@ -342,8 +343,7 @@ export const supabaseDb = {
       usersActive,
       usersDeactivated: rows.length - usersActive,
       admins: rows.filter(
-        (p) =>
-          !p.deactivated_at && (p.role === 'admin' || (p.roles ?? []).includes('admin')),
+        (p) => !p.deactivated_at && (p.roles ?? []).includes('admin'),
       ).length,
       listingsActive: activeListings ?? 0,
       listingsTotal: totalListings ?? 0,

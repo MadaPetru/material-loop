@@ -6,7 +6,7 @@ import { approximateCoords, daysFromNow, haversineKm } from '@/lib/geo';
 import { createId } from '@/lib/id';
 import { LISTING_EXPIRY_DAYS } from '@/lib/config';
 import { normalizeRoPhone } from '@/lib/phone';
-import { isAdmin, normalizeRoles, primaryRole, rolesAfterPrimaryChange } from '@/lib/entitlements';
+import { hasRole, isAdmin, normalizeRoles, rolesWithAdmin } from '@/lib/entitlements';
 import type {
   AdminAnalytics,
   ChatMessage,
@@ -23,7 +23,7 @@ import type {
 } from '@/lib/types';
 import { otherParticipantId, withMeta } from './messaging-shared';
 
-const STORAGE_KEY = 'materialloop.demo.v5';
+const STORAGE_KEY = 'materialloop.demo.v6';
 
 /** Demo OTP always accepts this code (and any 6 digits after send). */
 export const DEMO_PHONE_OTP = '123456';
@@ -78,8 +78,10 @@ async function load() {
         // Merge so older local demos still keep seed passwords / data shape.
         const profiles = (parsed.profiles?.length ? parsed.profiles : defaults.profiles).map(
           (p) => {
-            const roles = normalizeRoles(p.roles, p.role);
-            return { ...p, roles, role: primaryRole(roles) };
+            const legacy = p as Profile & { role?: UserRole };
+            const roles = normalizeRoles(legacy.roles ?? legacy.role ?? null);
+            const { role: _legacyRole, ...rest } = legacy;
+            return { ...rest, roles };
           },
         );
         memory = {
@@ -150,7 +152,6 @@ export const demoDb = {
       displayName,
       avatarUrl: null,
       accountType: 'individual',
-      role: 'user',
       roles: ['user'],
       cityId: 'bh-oradea',
       phone: null,
@@ -193,11 +194,11 @@ export const demoDb = {
     const state = await load();
     const idx = state.profiles.findIndex((p) => p.id === userId);
     if (idx < 0) throw new Error('Profil negăsit.');
-    // Phone / role / deactivation are managed through dedicated flows.
+    // Phone / roles / deactivation are managed through dedicated flows.
     const {
       phone: _phone,
       phoneVerifiedAt: _verified,
-      role: _role,
+      roles: _roles,
       deactivatedAt: _deactivated,
       ...safe
     } = patch;
@@ -223,10 +224,13 @@ export const demoDb = {
 
   async adminUpdateUser(
     targetUserId: string,
-    patch: { role?: UserRole; deactivated?: boolean },
+    patch: { roles?: UserRole[]; setAdmin?: boolean; deactivated?: boolean },
   ) {
     const admin = await this.requireAdmin();
-    if (admin.id === targetUserId && patch.role === 'user') {
+    const removingAdmin =
+      patch.setAdmin === false ||
+      (patch.roles !== undefined && !hasRole(patch.roles, 'admin'));
+    if (admin.id === targetUserId && removingAdmin) {
       throw new Error('Nu îți poți elimina propriul rol de administrator.');
     }
     if (admin.id === targetUserId && patch.deactivated === true) {
@@ -236,10 +240,8 @@ export const demoDb = {
     const idx = state.profiles.findIndex((p) => p.id === targetUserId);
     if (idx < 0) throw new Error('Utilizator negăsit.');
     const next = { ...state.profiles[idx] };
-    if (patch.role !== undefined) {
-      next.roles = rolesAfterPrimaryChange(patch.role, next.roles);
-      next.role = primaryRole(next.roles);
-    }
+    if (patch.roles !== undefined) next.roles = normalizeRoles(patch.roles);
+    else if (patch.setAdmin !== undefined) next.roles = rolesWithAdmin(patch.setAdmin, next.roles);
     if (patch.deactivated === true) next.deactivatedAt = new Date().toISOString();
     if (patch.deactivated === false) next.deactivatedAt = null;
     state.profiles[idx] = next;

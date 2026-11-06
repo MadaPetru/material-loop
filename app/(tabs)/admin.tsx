@@ -17,14 +17,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLocale } from '@/contexts/LocaleContext';
 import { marketplace } from '@/lib/api/marketplace';
 import { buildAdminUserMailto } from '@/lib/contact';
-import { resolveEntitlements } from '@/lib/entitlements';
+import { hasRole, resolveEntitlements } from '@/lib/entitlements';
 import { toUserError } from '@/lib/userErrors';
 import { colors, fonts, layout, radii, spacing } from '@/lib/theme';
 import { useResponsive } from '@/lib/useResponsive';
-import type { AdminAnalytics, Profile, UserRole } from '@/lib/types';
+import type { AdminAnalytics, Profile } from '@/lib/types';
 
 type PendingAction =
-  | { type: 'role'; user: Profile; role: UserRole }
+  | { type: 'admin'; user: Profile; setAdmin: boolean }
   | { type: 'deactivate'; user: Profile; deactivated: boolean }
   | null;
 
@@ -78,7 +78,7 @@ export default function AdminScreen() {
       (u) =>
         u.displayName.toLowerCase().includes(q) ||
         u.email.toLowerCase().includes(q) ||
-        u.role.includes(q),
+        u.roles.some((r) => r.includes(q)),
     );
   }, [users, query]);
 
@@ -128,8 +128,8 @@ export default function AdminScreen() {
     setError(null);
     try {
       const updated =
-        pending.type === 'role'
-          ? await marketplace.adminUpdateUser(pending.user.id, { role: pending.role })
+        pending.type === 'admin'
+          ? await marketplace.adminUpdateUser(pending.user.id, { setAdmin: pending.setAdmin })
           : await marketplace.adminUpdateUser(pending.user.id, {
               deactivated: pending.deactivated,
             });
@@ -146,17 +146,13 @@ export default function AdminScreen() {
 
   const confirmCopy = (() => {
     if (!pending) return { title: '', message: '', confirm: '' };
-    if (pending.type === 'role') {
+    if (pending.type === 'admin') {
       return {
-        title:
-          pending.role === 'admin'
-            ? t('admin.promoteTitle')
-            : t('admin.demoteTitle'),
-        message:
-          pending.role === 'admin'
-            ? t('admin.promoteBody', { name: pending.user.displayName })
-            : t('admin.demoteBody', { name: pending.user.displayName }),
-        confirm: pending.role === 'admin' ? t('admin.makeAdmin') : t('admin.makeUser'),
+        title: pending.setAdmin ? t('admin.promoteTitle') : t('admin.demoteTitle'),
+        message: pending.setAdmin
+          ? t('admin.promoteBody', { name: pending.user.displayName })
+          : t('admin.demoteBody', { name: pending.user.displayName }),
+        confirm: pending.setAdmin ? t('admin.makeAdmin') : t('admin.makeUser'),
       };
     }
     return {
@@ -255,14 +251,14 @@ export default function AdminScreen() {
                 ) : null}
                 {canManageUsers && !self ? (
                   <Button
-                    label={item.role === 'admin' ? t('admin.makeUser') : t('admin.makeAdmin')}
+                    label={hasRole(item.roles, 'admin') ? t('admin.makeUser') : t('admin.makeAdmin')}
                     variant="ghost"
                     compact
                     onPress={() =>
                       setPending({
-                        type: 'role',
+                        type: 'admin',
                         user: item,
-                        role: item.role === 'admin' ? 'user' : 'admin',
+                        setAdmin: !hasRole(item.roles, 'admin'),
                       })
                     }
                     disabled={busy}

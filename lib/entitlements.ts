@@ -21,7 +21,6 @@ export const ENTITLEMENTS = [
 export type Entitlement = (typeof ENTITLEMENTS)[number];
 
 export type RoleDefinition = {
-  /** Primary display / backward-compat role key. */
   id: UserRole;
   /** Capabilities granted by this role. Edit this list to show/hide features. */
   entitlements: readonly Entitlement[];
@@ -62,24 +61,17 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleDefinition> = {
 };
 
 /** Normalize one or many roles; always returns at least `user` when empty. */
-export function normalizeRoles(
-  input?: UserRole | UserRole[] | null,
-  fallbackPrimary?: UserRole | null,
-): UserRole[] {
+export function normalizeRoles(input?: UserRole | UserRole[] | null): UserRole[] {
   const list = Array.isArray(input) ? input : input ? [input] : [];
-  const withFallback =
-    list.length > 0 ? list : fallbackPrimary ? [fallbackPrimary] : (['user'] as UserRole[]);
-  const unique = Array.from(new Set(withFallback.filter(Boolean))) as UserRole[];
+  const unique = Array.from(new Set(list.filter(Boolean))) as UserRole[];
   return unique.length ? unique : ['user'];
 }
 
-/** Primary role for legacy fields / labels: prefer admin when present. */
-export function primaryRole(roles: UserRole[]): UserRole {
-  if (roles.includes('admin')) return 'admin';
-  return roles[0] ?? 'user';
+export function hasRole(roles: UserRole[] | null | undefined, role: UserRole) {
+  return normalizeRoles(roles).includes(role);
 }
 
-/** Union of entitlements from all assigned roles (multi-role ready). */
+/** Union of entitlements from all assigned roles. */
 export function resolveEntitlements(roles: UserRole[]): Entitlement[] {
   const set = new Set<Entitlement>();
   for (const role of normalizeRoles(roles)) {
@@ -98,7 +90,7 @@ export function entitlementsForRole(role: UserRole | null | undefined): readonly
 type EntitlementSubject =
   | UserRole
   | UserRole[]
-  | Pick<Profile, 'role' | 'roles' | 'deactivatedAt'>
+  | Pick<Profile, 'roles' | 'deactivatedAt'>
   | null
   | undefined;
 
@@ -107,7 +99,7 @@ function subjectRoles(subject: EntitlementSubject): UserRole[] {
   if (typeof subject === 'string') return normalizeRoles(subject);
   if (Array.isArray(subject)) return normalizeRoles(subject);
   if (subject.deactivatedAt) return [];
-  return normalizeRoles(subject.roles, subject.role);
+  return normalizeRoles(subject.roles);
 }
 
 export function hasEntitlement(subject: EntitlementSubject, entitlement: Entitlement): boolean {
@@ -135,10 +127,8 @@ export function isAdmin(subject: EntitlementSubject) {
   return hasEntitlement(subject, 'admin.panel');
 }
 
-/** Build roles array when promoting / demoting via admin tools. */
-export function rolesAfterPrimaryChange(nextPrimary: UserRole, current?: UserRole[]): UserRole[] {
-  if (nextPrimary === 'admin') {
-    return normalizeRoles([...(current ?? []), 'admin', 'user']);
-  }
+/** Promote / demote admin while keeping base `user` role. */
+export function rolesWithAdmin(enabled: boolean, current?: UserRole[]): UserRole[] {
+  if (enabled) return normalizeRoles([...(current ?? []), 'user', 'admin']);
   return ['user'];
 }
