@@ -107,6 +107,13 @@ const en: TranslationDict = {
     fieldTitle: 'Title',
     fieldLocation: 'Location (county / locality)',
   },
+  editListing: {
+    heading: 'Edit listing',
+    hint: 'You can change every detail: category, location, price, photos, and the rest.',
+    save: 'Save changes',
+    forbidden: 'You cannot edit this listing.',
+    removePhoto: 'Remove',
+  },
   favorites: {
     gateTitle: 'Save listings you care about',
     gateSub: 'Sign in to see your favorites.',

@@ -1,83 +1,546 @@
+import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
+import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState, type ElementRef } from 'react';
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  View,
+  type LayoutChangeEvent,
+} from 'react-native';
+import { LocationPicker } from '@/components/LocationPicker';
 import { Button } from '@/components/ui/Button';
+import { ErrorBanner } from '@/components/ui/ErrorBanner';
 import { Input } from '@/components/ui/Input';
+import { CATEGORIES, subcategoriesFor } from '@/data/categories';
+import { formatCityCounty, getCity, nearestCity } from '@/data/romania';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLocale } from '@/contexts/LocaleContext';
 import { marketplace } from '@/lib/api/marketplace';
-import { colors, fonts, spacing } from '@/lib/theme';
-import type { ListingWithRelations } from '@/lib/types';
+import { MAX_PHOTOS } from '@/lib/config';
+import { conditionLabels, unitLabels } from '@/lib/labels';
+import { colors, fonts, radii, spacing } from '@/lib/theme';
+import { toUserError } from '@/lib/userErrors';
+import type { MeasurementUnit, ProductCondition } from '@/lib/types';
+
+const CONDITIONS = Object.keys(conditionLabels) as ProductCondition[];
+const UNITS = Object.keys(unitLabels) as MeasurementUnit[];
 
 export default function EditListingScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
-  const [listing, setListing] = useState<ListingWithRelations | null>(null);
+  const { t } = useLocale();
+
+  const [loading, setLoading] = useState(true);
+  const [forbidden, setForbidden] = useState(false);
+  const [listingId, setListingId] = useState<string | null>(null);
+  const [status, setStatus] = useState<'draft' | 'active' | string>('draft');
+
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [categoryId, setCategoryId] = useState(CATEGORIES[0].id);
+  const [subcategoryId, setSubcategoryId] = useState<string | null>(null);
+  const [brand, setBrand] = useState('');
+  const [model, setModel] = useState('');
+  const [condition, setCondition] = useState<ProductCondition>('new_unopened');
+  const [quantity, setQuantity] = useState('1');
+  const [unit, setUnit] = useState<MeasurementUnit>('piece');
   const [price, setPrice] = useState('');
+  const [isFree, setIsFree] = useState(false);
+  const [isNegotiable, setIsNegotiable] = useState(true);
+  const [pickup, setPickup] = useState(true);
+  const [delivery, setDelivery] = useState(false);
+  const [storageNotes, setStorageNotes] = useState('');
+  const [countyId, setCountyId] = useState<string | null>(null);
+  const [cityId, setCityId] = useState<string | null>(null);
+  const [photos, setPhotos] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [locationNote, setLocationNote] = useState<string | null>(null);
+  const [detectingLocation, setDetectingLocation] = useState(false);
+
+  const scrollRef = useRef<ElementRef<typeof ScrollView>>(null);
+  const titleInputRef = useRef<ElementRef<typeof TextInput>>(null);
+  const fieldY = useRef({ title: 0, location: 0 });
+
+  const subs = useMemo(() => subcategoriesFor(categoryId), [categoryId]);
+
+  const rememberY =
+    (key: keyof typeof fieldY.current) => (e: LayoutChangeEvent) => {
+      fieldY.current[key] = e.nativeEvent.layout.y;
+    };
+
+  const focusField = (key: 'title' | 'location') => {
+    const y = Math.max(0, fieldY.current[key] - 12);
+    scrollRef.current?.scrollTo({ y, animated: true });
+    if (key === 'title') {
+      setTimeout(() => titleInputRef.current?.focus(), 280);
+    }
+  };
+
+  const showFieldError = (message: string, key: 'title' | 'location') => {
+    setError(message);
+    requestAnimationFrame(() => focusField(key));
+  };
+
+  const applyCity = useCallback((nextCityId: string, note?: string) => {
+    const city = getCity(nextCityId);
+    if (!city) return;
+    setCityId(city.id);
+    setCountyId(city.countyId);
+    if (note) setLocationNote(note);
+  }, []);
+
+  const detectLocation = useCallback(async () => {
+    setDetectingLocation(true);
+    setLocationNote(t('createListing.locationDetecting'));
+    try {
+      const { status: perm } = await Location.requestForegroundPermissionsAsync();
+      if (perm !== 'granted') {
+        setLocationNote(null);
+        return;
+      }
+      const pos = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      const city = nearestCity(pos.coords.latitude, pos.coords.longitude);
+      if (!city) {
+        setLocationNote(null);
+        return;
+      }
+      applyCity(
+        city.id,
+        t('createListing.locationDetected', { place: formatCityCounty(city.id) }),
+      );
+    } catch {
+      setLocationNote(null);
+    } finally {
+      setDetectingLocation(false);
+    }
+  }, [applyCity, t]);
 
   useEffect(() => {
-    marketplace.getListing(String(id)).then((item) => {
-      setListing(item);
-      if (item) {
+    let active = true;
+    setLoading(true);
+    marketplace
+      .getListing(String(id))
+      .then((item) => {
+        if (!active) return;
+        if (!item) {
+          setForbidden(true);
+          return;
+        }
+        if (!user || item.sellerId !== user.id) {
+          setForbidden(true);
+          return;
+        }
+        setListingId(item.id);
+        setStatus(item.status);
         setTitle(item.title);
         setDescription(item.description);
-        setPrice(String(item.price));
+        setCategoryId(item.categoryId);
+        setSubcategoryId(item.subcategoryId);
+        setBrand(item.brand ?? '');
+        setModel(item.model ?? '');
+        setCondition(item.condition);
+        setQuantity(String(item.quantity));
+        setUnit(item.unit);
+        setIsFree(item.isFree);
+        setPrice(item.isFree ? '' : String(item.price));
+        setIsNegotiable(item.isNegotiable);
+        setPickup(item.pickupAvailable);
+        setDelivery(item.deliveryAvailable);
+        setStorageNotes(item.storageNotes ?? '');
+        setPhotos(item.photos.map((p) => p.url));
+        const city = getCity(item.cityId);
+        if (city) {
+          setCityId(city.id);
+          setCountyId(city.countyId);
+        } else {
+          setCityId(item.cityId);
+          setCountyId(null);
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [id, user]);
+
+  const pickPhotos = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsMultipleSelection: true,
+        quality: 0.8,
+        selectionLimit: MAX_PHOTOS - photos.length,
+      });
+      if (!result.canceled) {
+        setPhotos((prev) => [...prev, ...result.assets.map((a) => a.uri)].slice(0, MAX_PHOTOS));
       }
-    });
-  }, [id]);
+    } catch (e) {
+      setError(toUserError(e));
+    }
+  };
 
-  if (!listing || !user) {
-    return <ActivityIndicator color={colors.brand} style={{ marginTop: 40 }} />;
-  }
-
-  if (listing.sellerId !== user.id) {
-    return (
-      <View style={styles.root}>
-        <Text style={styles.msg}>Nu poți edita acest anunț.</Text>
-      </View>
-    );
-  }
+  const removePhoto = (uri: string) => {
+    setPhotos((prev) => prev.filter((p) => p !== uri));
+  };
 
   const save = async () => {
+    if (!user || !listingId) return;
+    if (!title.trim()) {
+      showFieldError(
+        t('createListing.missingFields', { fields: t('createListing.fieldTitle') }),
+        'title',
+      );
+      return;
+    }
+    if (!cityId || !getCity(cityId)) {
+      showFieldError(
+        t('createListing.missingFields', { fields: t('createListing.fieldLocation') }),
+        'location',
+      );
+      return;
+    }
+    const city = getCity(cityId)!;
+    const trimmedTitle = title.trim();
+    const trimmedDescription = description.trim() || trimmedTitle;
+    const parsedPrice = Number(price.replace(',', '.'));
+    const free = isFree || !price.trim() || !Number.isFinite(parsedPrice) || parsedPrice <= 0;
+
     setBusy(true);
+    setError(null);
     try {
-      await marketplace.updateListing(listing.id, user.id, {
-        title: title.trim(),
-        description: description.trim(),
-        price: listing.isFree ? 0 : Number(price.replace(',', '.')) || 0,
-        photoUrls: listing.photos.map((p) => p.url),
+      await marketplace.updateListing(listingId, user.id, {
+        title: trimmedTitle,
+        description: trimmedDescription,
+        categoryId,
+        subcategoryId,
+        brand: brand.trim() || null,
+        model: model.trim() || null,
+        condition,
+        quantity: Number(quantity.replace(',', '.')) || 1,
+        unit,
+        price: free ? 0 : parsedPrice,
+        currency: 'RON',
+        isNegotiable: free ? false : isNegotiable,
+        isFree: free,
+        cityId: city.id,
+        countryId: 'ro',
+        lat: city.lat,
+        lng: city.lng,
+        pickupAvailable: pickup,
+        deliveryAvailable: delivery,
+        storageNotes: storageNotes.trim() || null,
+        status: status === 'draft' || status === 'active' ? status : undefined,
+        photoUrls: photos,
       });
-      router.replace(`/listing/${listing.id}`);
+      router.replace(`/listing/${listingId}`);
     } catch (e) {
-      Alert.alert('Eroare', e instanceof Error ? e.message : 'Salvare eșuată');
+      setError(toUserError(e, t('errors.genericRetry')));
     } finally {
       setBusy(false);
     }
   };
 
+  if (loading) {
+    return <ActivityIndicator color={colors.brand} style={{ marginTop: 40 }} />;
+  }
+
+  if (forbidden || !listingId || !user) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.msg}>{t('editListing.forbidden')}</Text>
+        <Button label={t('common.back')} variant="secondary" onPress={() => router.back()} />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.root}>
-      <Text style={styles.title}>Editează anunț</Text>
-      <Input label="Titlu" value={title} onChangeText={setTitle} />
+      {error ? (
+        <View style={styles.stickyError} accessibilityRole="alert">
+          <ErrorBanner message={error} />
+        </View>
+      ) : null}
+      <ScrollView
+        ref={scrollRef}
+        style={styles.scroll}
+        contentContainerStyle={{ padding: spacing.xl, gap: spacing.md, paddingBottom: 80 }}
+        keyboardShouldPersistTaps="handled"
+      >
+      <Text style={styles.brand}>{t('common.brand')}</Text>
+      <Text style={styles.title}>{t('editListing.heading')}</Text>
+      <Text style={styles.hint}>{t('editListing.hint')}</Text>
+
+      <View onLayout={rememberY('title')}>
+        <Input
+          ref={titleInputRef}
+          label={t('createListing.titleRequired')}
+          value={title}
+          error={
+            error && !title.trim()
+              ? t('createListing.missingFields', { fields: t('createListing.fieldTitle') })
+              : undefined
+          }
+          onChangeText={(v) => {
+            setTitle(v);
+            setError(null);
+          }}
+        />
+      </View>
       <Input
-        label="Descriere"
+        label={t('createListing.descriptionOptional')}
         value={description}
         onChangeText={setDescription}
         multiline
-        style={{ minHeight: 120, textAlignVertical: 'top' }}
+        style={{ minHeight: 100, textAlignVertical: 'top' }}
       />
-      {!listing.isFree ? (
-        <Input label="Preț (RON)" value={price} onChangeText={setPrice} keyboardType="decimal-pad" />
+
+      <Text style={styles.label}>{t('createListing.category')}</Text>
+      <View style={styles.wrapRow}>
+        {CATEGORIES.map((c) => (
+          <Pressable
+            key={c.id}
+            onPress={() => {
+              setCategoryId(c.id);
+              setSubcategoryId(subcategoriesFor(c.id)[0]?.id ?? null);
+            }}
+            style={[styles.chip, categoryId === c.id && styles.chipActive]}
+          >
+            <Text style={[styles.chipText, categoryId === c.id && styles.chipTextActive]}>
+              {c.name}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
+      {subs.length ? (
+        <>
+          <Text style={styles.label}>{t('createListing.subcategory')}</Text>
+          <View style={styles.wrapRow}>
+            {subs.map((s) => (
+              <Pressable
+                key={s.id}
+                onPress={() => setSubcategoryId(s.id)}
+                style={[styles.chip, subcategoryId === s.id && styles.chipActive]}
+              >
+                <Text style={[styles.chipText, subcategoryId === s.id && styles.chipTextActive]}>
+                  {s.name}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </>
       ) : null}
-      <Button label={busy ? 'Se salvează…' : 'Salvează'} onPress={save} disabled={busy} />
+
+      <Input label={t('createListing.brand')} value={brand} onChangeText={setBrand} />
+      <Input label={t('createListing.model')} value={model} onChangeText={setModel} />
+
+      <Text style={styles.label}>{t('createListing.condition')}</Text>
+      <View style={styles.wrapRow}>
+        {CONDITIONS.map((c) => (
+          <Pressable
+            key={c}
+            onPress={() => setCondition(c)}
+            style={[styles.chip, condition === c && styles.chipActive]}
+          >
+            <Text style={[styles.chipText, condition === c && styles.chipTextActive]}>
+              {conditionLabels[c]}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
+      <Input
+        label={t('createListing.quantity')}
+        value={quantity}
+        onChangeText={setQuantity}
+        keyboardType="decimal-pad"
+      />
+      <Text style={styles.label}>{t('createListing.unit')}</Text>
+      <View style={styles.wrapRow}>
+        {UNITS.map((u) => (
+          <Pressable
+            key={u}
+            onPress={() => setUnit(u)}
+            style={[styles.chip, unit === u && styles.chipActive]}
+          >
+            <Text style={[styles.chipText, unit === u && styles.chipTextActive]}>
+              {unitLabels[u]}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
+      <View style={styles.switchRow}>
+        <Text style={styles.switchLabel}>{t('createListing.free')}</Text>
+        <Switch
+          value={isFree}
+          onValueChange={(v) => {
+            setIsFree(v);
+            if (v) setPrice('');
+          }}
+        />
+      </View>
+      {!isFree ? (
+        <>
+          <Input
+            label={t('createListing.price')}
+            value={price}
+            onChangeText={setPrice}
+            keyboardType="decimal-pad"
+          />
+          <View style={styles.switchRow}>
+            <Text style={styles.switchLabel}>{t('createListing.negotiable')}</Text>
+            <Switch value={isNegotiable} onValueChange={setIsNegotiable} />
+          </View>
+        </>
+      ) : null}
+
+      <View style={styles.switchRow}>
+        <Text style={styles.switchLabel}>{t('createListing.pickup')}</Text>
+        <Switch value={pickup} onValueChange={setPickup} />
+      </View>
+      <View style={styles.switchRow}>
+        <Text style={styles.switchLabel}>{t('createListing.delivery')}</Text>
+        <Switch value={delivery} onValueChange={setDelivery} />
+      </View>
+
+      <Input
+        label={t('createListing.storage')}
+        value={storageNotes}
+        onChangeText={setStorageNotes}
+        multiline
+        style={{ minHeight: 80, textAlignVertical: 'top' }}
+      />
+
+      <View onLayout={rememberY('location')}>
+        <Text style={styles.label}>{t('createListing.location')}</Text>
+        <Text style={styles.hint}>{t('createListing.locationHint')}</Text>
+        {locationNote ? <Text style={styles.locationNote}>{locationNote}</Text> : null}
+        <Button
+          label={
+            detectingLocation
+              ? t('createListing.locationDetecting')
+              : t('createListing.useMyLocation')
+          }
+          variant="secondary"
+          onPress={() => void detectLocation()}
+          disabled={detectingLocation || busy}
+        />
+        <LocationPicker
+          countyId={countyId}
+          cityId={cityId}
+          onChange={({ countyId: c, cityId: city }) => {
+            setCountyId(c);
+            setCityId(city);
+            setLocationNote(null);
+            setError(null);
+          }}
+        />
+      </View>
+
+      <Text style={styles.label}>
+        {t('createListing.photos', { count: photos.length, max: MAX_PHOTOS })}
+      </Text>
+      <View style={styles.photos}>
+        {photos.map((uri) => (
+          <Pressable key={uri} onPress={() => removePhoto(uri)} accessibilityRole="button">
+            <Image source={{ uri }} style={styles.thumb} />
+            <Text style={styles.removePhoto}>{t('editListing.removePhoto')}</Text>
+          </Pressable>
+        ))}
+      </View>
+      <Button
+        label={t('createListing.addPhotos')}
+        variant="secondary"
+        onPress={() => void pickPhotos()}
+        disabled={photos.length >= MAX_PHOTOS}
+      />
+
+      <Button
+        label={busy ? t('createListing.saving') : t('editListing.save')}
+        onPress={() => void save()}
+        disabled={busy}
+      />
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.bg, padding: spacing.xl, gap: spacing.md },
-  title: { fontFamily: fonts.display, fontSize: 24, color: colors.ink },
-  msg: { fontFamily: fonts.sans, color: colors.inkMuted },
+  root: { flex: 1, backgroundColor: colors.bg },
+  scroll: { flex: 1 },
+  stickyError: {
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
+    backgroundColor: colors.bg,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
+    zIndex: 20,
+  },
+  center: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: spacing.xl,
+    gap: spacing.md,
+    backgroundColor: colors.bg,
+  },
+  msg: { fontFamily: fonts.sans, color: colors.inkMuted, textAlign: 'center' },
+  brand: { fontFamily: fonts.displayBold, color: colors.brand, fontSize: 22 },
+  title: { fontFamily: fonts.display, fontSize: 26, color: colors.ink },
+  hint: {
+    fontFamily: fonts.sans,
+    color: colors.inkMuted,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  label: {
+    fontFamily: fonts.sansMedium,
+    color: colors.inkMuted,
+    fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginTop: spacing.sm,
+  },
+  wrapRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  chip: {
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.bgElevated,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  chipActive: { backgroundColor: colors.brandSoft, borderColor: colors.brand },
+  chipText: { fontFamily: fonts.sansMedium, color: colors.inkMuted, fontSize: 13 },
+  chipTextActive: { color: colors.brandDark, fontFamily: fonts.sansBold },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  switchLabel: { flex: 1, fontFamily: fonts.sans, color: colors.ink, fontSize: 15 },
+  locationNote: { fontFamily: fonts.sans, color: colors.brandDark, fontSize: 13 },
+  photos: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  thumb: { width: 88, height: 88, borderRadius: radii.md, backgroundColor: colors.line },
+  removePhoto: {
+    fontFamily: fonts.sans,
+    fontSize: 11,
+    color: colors.danger,
+    textAlign: 'center',
+    marginTop: 4,
+  },
 });

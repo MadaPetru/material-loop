@@ -106,6 +106,13 @@ export type TranslationDict = {
     fieldTitle: string;
     fieldLocation: string;
   };
+  editListing: {
+    heading: string;
+    hint: string;
+    save: string;
+    forbidden: string;
+    removePhoto: string;
+  };
   favorites: {
     gateTitle: string;
     gateSub: string;

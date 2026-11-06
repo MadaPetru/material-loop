@@ -2,14 +2,16 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ElementRef } from 'react';
 import {
   Pressable,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
+  TextInput,
   View,
+  type LayoutChangeEvent,
 } from 'react-native';
 import { LocationPicker } from '@/components/LocationPicker';
 import { Button } from '@/components/ui/Button';
@@ -57,7 +59,30 @@ export default function CreateListingScreen() {
   const [locationNote, setLocationNote] = useState<string | null>(null);
   const [detectingLocation, setDetectingLocation] = useState(false);
 
+  const scrollRef = useRef<ElementRef<typeof ScrollView>>(null);
+  const titleInputRef = useRef<ElementRef<typeof TextInput>>(null);
+  const fieldY = useRef({ title: 0, location: 0 });
+
   const subs = useMemo(() => subcategoriesFor(categoryId), [categoryId]);
+
+  const rememberY =
+    (key: keyof typeof fieldY.current) => (e: LayoutChangeEvent) => {
+      fieldY.current[key] = e.nativeEvent.layout.y;
+    };
+
+  const focusField = (key: 'title' | 'location') => {
+    const y = Math.max(0, fieldY.current[key] - 12);
+    scrollRef.current?.scrollTo({ y, animated: true });
+    if (key === 'title') {
+      setTimeout(() => titleInputRef.current?.focus(), 280);
+    }
+  };
+
+  const showFieldError = (message: string, key: 'title' | 'location') => {
+    setError(message);
+    // Wait a tick so the sticky banner mounts, then scroll to the field.
+    requestAnimationFrame(() => focusField(key));
+  };
 
   const applyCity = useCallback((nextCityId: string, note?: string) => {
     const city = getCity(nextCityId);
@@ -139,18 +164,21 @@ export default function CreateListingScreen() {
     }
   };
 
-  const missingFields = (forPublish: boolean) => {
-    const missing: string[] = [];
-    if (!title.trim()) missing.push(t('createListing.fieldTitle'));
-    if (forPublish && !cityId) missing.push(t('createListing.fieldLocation'));
-    return missing;
-  };
-
   const submit = async (status: 'draft' | 'active') => {
     const forPublish = status === 'active';
-    const missing = missingFields(forPublish);
-    if (missing.length) {
-      setError(t('createListing.missingFields', { fields: missing.join(', ') }));
+
+    if (!title.trim()) {
+      showFieldError(
+        t('createListing.missingFields', { fields: t('createListing.fieldTitle') }),
+        'title',
+      );
+      return;
+    }
+    if (forPublish && !cityId) {
+      showFieldError(
+        t('createListing.missingFields', { fields: t('createListing.fieldLocation') }),
+        'location',
+      );
       return;
     }
 
@@ -160,7 +188,10 @@ export default function CreateListingScreen() {
       resolvedCityId = user.cityId;
     }
     if (!resolvedCityId && forPublish) {
-      setError(t('createListing.missingFields', { fields: t('createListing.fieldLocation') }));
+      showFieldError(
+        t('createListing.missingFields', { fields: t('createListing.fieldLocation') }),
+        'location',
+      );
       return;
     }
     if (!resolvedCityId) {
@@ -170,7 +201,10 @@ export default function CreateListingScreen() {
 
     const city = getCity(resolvedCityId);
     if (!city) {
-      setError(t('createListing.missingFields', { fields: t('createListing.fieldLocation') }));
+      showFieldError(
+        t('createListing.missingFields', { fields: t('createListing.fieldLocation') }),
+        'location',
+      );
       return;
     }
 
@@ -216,24 +250,39 @@ export default function CreateListingScreen() {
   };
 
   return (
-    <ScrollView
-      style={styles.root}
-      contentContainerStyle={{ padding: spacing.xl, gap: spacing.md, paddingBottom: 60 }}
-      keyboardShouldPersistTaps="handled"
-    >
+    <View style={styles.root}>
+      {error ? (
+        <View style={styles.stickyError} accessibilityRole="alert">
+          <ErrorBanner message={error} />
+        </View>
+      ) : null}
+      <ScrollView
+        ref={scrollRef}
+        style={styles.scroll}
+        contentContainerStyle={{ padding: spacing.xl, gap: spacing.md, paddingBottom: 80 }}
+        keyboardShouldPersistTaps="handled"
+      >
       <Text style={styles.brand}>{t('common.brand')}</Text>
       <Text style={styles.title}>{t('createListing.heading')}</Text>
       <Text style={styles.hint}>{t('createListing.hint')}</Text>
 
-      <Input
-        label={t('createListing.titleRequired')}
-        value={title}
-        onChangeText={(v) => {
-          setTitle(v);
-          setError(null);
-        }}
-        placeholder="ex. Adeziv Ceresit 3 saci"
-      />
+      <View onLayout={rememberY('title')}>
+        <Input
+          ref={titleInputRef}
+          label={t('createListing.titleRequired')}
+          value={title}
+          error={
+            error && !title.trim()
+              ? t('createListing.missingFields', { fields: t('createListing.fieldTitle') })
+              : undefined
+          }
+          onChangeText={(v) => {
+            setTitle(v);
+            setError(null);
+          }}
+          placeholder="ex. Adeziv Ceresit 3 saci"
+        />
+      </View>
       <Input
         label={t('createListing.descriptionOptional')}
         value={description}
@@ -360,25 +409,31 @@ export default function CreateListingScreen() {
         style={{ minHeight: 80, textAlignVertical: 'top' }}
       />
 
-      <Text style={styles.label}>{t('createListing.location')}</Text>
-      <Text style={styles.hint}>{t('createListing.locationHint')}</Text>
-      {locationNote ? <Text style={styles.locationNote}>{locationNote}</Text> : null}
-      <Button
-        label={detectingLocation ? t('createListing.locationDetecting') : t('createListing.useMyLocation')}
-        variant="secondary"
-        onPress={() => detectLocation()}
-        disabled={detectingLocation || busy}
-      />
-      <LocationPicker
-        countyId={countyId}
-        cityId={cityId}
-        onChange={({ countyId: c, cityId: city }) => {
-          setCountyId(c);
-          setCityId(city);
-          setLocationNote(null);
-          setError(null);
-        }}
-      />
+      <View onLayout={rememberY('location')}>
+        <Text style={styles.label}>{t('createListing.location')}</Text>
+        <Text style={styles.hint}>{t('createListing.locationHint')}</Text>
+        {locationNote ? <Text style={styles.locationNote}>{locationNote}</Text> : null}
+        <Button
+          label={
+            detectingLocation
+              ? t('createListing.locationDetecting')
+              : t('createListing.useMyLocation')
+          }
+          variant="secondary"
+          onPress={() => detectLocation()}
+          disabled={detectingLocation || busy}
+        />
+        <LocationPicker
+          countyId={countyId}
+          cityId={cityId}
+          onChange={({ countyId: c, cityId: city }) => {
+            setCountyId(c);
+            setCityId(city);
+            setLocationNote(null);
+            setError(null);
+          }}
+        />
+      </View>
 
       <Text style={styles.label}>
         {t('createListing.photos', { count: photos.length, max: MAX_PHOTOS })}
@@ -389,9 +444,6 @@ export default function CreateListingScreen() {
         ))}
       </View>
       <Button label={t('createListing.addPhotos')} variant="secondary" onPress={pickPhotos} />
-
-      {/* Near save actions so validation errors are visible without scrolling up. */}
-      <ErrorBanner message={error} />
 
       <Button
         label={busy ? t('createListing.publishing') : t('createListing.publish')}
@@ -404,12 +456,23 @@ export default function CreateListingScreen() {
         onPress={() => submit('draft')}
         disabled={busy}
       />
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
+  scroll: { flex: 1 },
+  stickyError: {
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
+    backgroundColor: colors.bg,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
+    zIndex: 20,
+  },
   center: { flex: 1, justifyContent: 'center', padding: spacing.xl, gap: spacing.md },
   msg: { fontFamily: fonts.sans, color: colors.inkMuted, textAlign: 'center' },
   brand: { fontFamily: fonts.displayBold, color: colors.brand, fontSize: 22 },

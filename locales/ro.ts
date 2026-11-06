@@ -107,6 +107,13 @@ const ro: TranslationDict = {
     fieldTitle: 'Titlu',
     fieldLocation: 'Locație (județ / localitate)',
   },
+  editListing: {
+    heading: 'Editează anunțul',
+    hint: 'Poți schimba toate detaliile: categorie, locație, preț, poze și restul câmpurilor.',
+    save: 'Salvează modificările',
+    forbidden: 'Nu poți edita acest anunț.',
+    removePhoto: 'Șterge',
+  },
   favorites: {
     gateTitle: 'Salvează anunțurile care te interesează',
     gateSub: 'Autentifică-te pentru a vedea favoritele.',

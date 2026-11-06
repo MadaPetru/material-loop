@@ -1,25 +1,26 @@
+import { forwardRef, type ElementRef } from 'react';
 import { StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
 import { colors, fonts, radii, spacing } from '@/lib/theme';
 
-export function Input({
-  label,
-  error,
-  accessibilityLabel,
-  ...props
-}: TextInputProps & { label?: string; error?: string }) {
-  return (
-    <View style={styles.wrap}>
-      {label ? <Text style={styles.label}>{label}</Text> : null}
-      <TextInput
-        placeholderTextColor={colors.inkFaint}
-        accessibilityLabel={accessibilityLabel ?? label}
-        {...props}
-        style={[styles.input, error ? styles.inputError : null, props.style]}
-      />
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-    </View>
-  );
-}
+type TextInputRef = ElementRef<typeof TextInput>;
+
+export const Input = forwardRef<TextInputRef, TextInputProps & { label?: string; error?: string }>(
+  function Input({ label, error, accessibilityLabel, ...props }, ref) {
+    return (
+      <View style={styles.wrap}>
+        {label ? <Text style={styles.label}>{label}</Text> : null}
+        <TextInput
+          ref={ref}
+          placeholderTextColor={colors.inkFaint}
+          accessibilityLabel={accessibilityLabel ?? label}
+          {...props}
+          style={[styles.input, error ? styles.inputError : null, props.style]}
+        />
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+      </View>
+    );
+  },
+);
 
 const styles = StyleSheet.create({
   wrap: { gap: spacing.xs },
