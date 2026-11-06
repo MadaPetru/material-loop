@@ -7,6 +7,7 @@ export type TranslationDict = {
     sell: string;
     favorites: string;
     messages: string;
+    contact: string;
     profile: string;
     login: string;
   };
@@ -175,6 +176,27 @@ export type TranslationDict = {
     emptyTitle: string;
     emptySub: string;
     create: string;
+  };
+  contact: {
+    eyebrow: string;
+    title: string;
+    sub: string;
+    to: string;
+    topic: string;
+    topicBug: string;
+    topicChange: string;
+    topicOther: string;
+    subject: string;
+    subjectPlaceholder: string;
+    replyEmail: string;
+    replyEmailPlaceholder: string;
+    message: string;
+    messagePlaceholder: string;
+    messageRequired: string;
+    send: string;
+    sending: string;
+    openedMail: string;
+    openMailFailed: string;
   };
   auth: {
     loginTitle: string;

@@ -109,6 +109,12 @@ export default function ProfileScreen() {
             style={isDesktop ? styles.actionFlex : undefined}
           />
           <Button
+            label={t('nav.contact')}
+            variant="ghost"
+            onPress={() => router.push('/contact')}
+            style={isDesktop ? styles.actionFlex : undefined}
+          />
+          <Button
             label={t('profile.signOut')}
             variant="ghost"
             onPress={() => signOut()}

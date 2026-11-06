@@ -104,6 +104,21 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
+          name="contact"
+          options={{
+            title: t('nav.contact'),
+            href: '/contact',
+            headerShown: !isDesktop,
+            tabBarIcon: ({ color }) => <TabIcon name="envelope" color={String(color)} />,
+          }}
+          listeners={{
+            tabPress: (e) => {
+              e.preventDefault();
+              router.navigate('/contact');
+            },
+          }}
+        />
+        <Tabs.Screen
           name="profile"
           options={{
             title: t('nav.profile'),
