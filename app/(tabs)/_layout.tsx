@@ -20,7 +20,7 @@ export default function TabLayout() {
   const { isDesktop, isTablet } = useResponsive();
   const { t, locale } = useLocale();
   const { can, refresh, user } = useAuth();
-  const showAdmin = can('admin.panel');
+  const showAdmin = can('admin.panel') || can('marketing.panel');
   const hideTabBar = isDesktop;
 
   // Reload profile (roles → entitlements) so Admin tab appears after DB/admin changes.
@@ -40,7 +40,7 @@ export default function TabLayout() {
         </View>
       ) : null}
       <Tabs
-        // Remount when admin entitlement appears, otherwise href:null stays stuck.
+        // Remount when admin/marketing entitlement appears, otherwise href:null stays stuck.
         key={`${locale}-${showAdmin ? 'with-admin' : 'no-admin'}`}
         screenOptions={{
           tabBarActiveTintColor: colors.brand,
@@ -135,10 +135,15 @@ export default function TabLayout() {
         <Tabs.Screen
           name="admin"
           options={{
-            title: t('nav.admin'),
+            title: can('admin.panel') ? t('nav.admin') : t('nav.marketing'),
             href: showAdmin ? '/admin' : null,
             headerShown: !isDesktop,
-            tabBarIcon: ({ color }) => <TabIcon name="shield" color={String(color)} />,
+            tabBarIcon: ({ color }) => (
+              <TabIcon
+                name={can('admin.panel') ? 'shield' : 'bullhorn'}
+                color={String(color)}
+              />
+            ),
           }}
           listeners={{
             tabPress: (e) => {

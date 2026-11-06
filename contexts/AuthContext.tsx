@@ -45,6 +45,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
+    try {
+      await marketplace.loadRoleCatalog();
+    } catch {
+      /* keep default / last catalog */
+    }
     const session = await marketplace.getSession();
     setUser(session);
   }, []);
@@ -91,6 +96,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       try {
+        try {
+          await marketplace.loadRoleCatalog();
+        } catch {
+          /* keep catalog */
+        }
         const session = await marketplace.getSession();
         if (mounted) setUser(session);
       } catch {

@@ -1,5 +1,26 @@
 export type AccountType = 'individual' | 'business';
-export type UserRole = 'user' | 'admin';
+/** Role slug from the DB roles catalog (e.g. user, admin, marketing). */
+export type UserRole = string;
+
+export type RoleDefinition = {
+  id: UserRole;
+  label: string;
+  description: string;
+  /** Entitlement IDs from the fixed code catalog. */
+  entitlements: string[];
+  system: boolean;
+  createdAt?: string;
+};
+
+export type MarketingAd = {
+  id: string;
+  title: string;
+  body: string;
+  active: boolean;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
 
 export type ListingStatus =
   | 'draft'

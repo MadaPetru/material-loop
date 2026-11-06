@@ -46,8 +46,9 @@ cp .env.example .env
 6. Pentru **ștergere cont** (hard delete Auth): deploy Edge Function-ul din repo:
    `npx supabase functions deploy delete-account`
    (necesită proiect link-uit). Fără el, app-ul face un soft-delete (profil dezactivat + anunțuri ascunse) și te deconectează.
-7. Pentru **rol admin** pe Supabase: aplică migrările `008`–`010`, apoi:
+7. Pentru **roluri / admin** pe Supabase: aplică migrările `008`–`013` (catalog `roles` + ads marketing), apoi:
    `update profiles set roles = array['user','admin'] where email = 'you@example.com';`
+   Rolurile și entitlement-urile se editează din panoul Admin → Roles.
    Accesul UI se controlează prin **entitlements** pe rol (`lib/entitlements.ts` → `ROLE_DEFINITIONS`).
 
 ## Deploy web (Vercel)

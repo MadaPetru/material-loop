@@ -8,9 +8,12 @@ import { LISTING_EXPIRY_DAYS } from '@/lib/config';
 import { normalizeRoPhone } from '@/lib/phone';
 import {
   assertEntitlement,
+  DEFAULT_ROLE_DEFINITIONS,
+  filterKnownEntitlements,
   hasEntitlement,
+  isValidRoleSlug,
   normalizeRoles,
-  rolesWithAdmin,
+  setRoleDefinitions,
 } from '@/lib/entitlements';
 import type {
   AdminAnalytics,
@@ -22,13 +25,15 @@ import type {
   ListingDraft,
   ListingPhoto,
   ListingWithRelations,
+  MarketingAd,
   Profile,
+  RoleDefinition,
   SearchFilters,
   UserRole,
 } from '@/lib/types';
 import { otherParticipantId, withMeta } from './messaging-shared';
 
-const STORAGE_KEY = 'materialloop.demo.v6';
+const STORAGE_KEY = 'materialloop.demo.v7';
 
 /** Demo OTP always accepts this code (and any 6 digits after send). */
 export const DEMO_PHONE_OTP = '123456';
@@ -42,6 +47,8 @@ type DemoState = {
   favorites: Favorite[];
   conversations: Conversation[];
   messages: ChatMessage[];
+  roles: RoleDefinition[];
+  ads: MarketingAd[];
   sessionUserId: string | null;
   passwords: Record<string, string>;
   pendingPhone: PendingPhone | null;
@@ -49,6 +56,14 @@ type DemoState = {
 
 let memory: DemoState | null = null;
 let ready: Promise<void> | null = null;
+
+function defaultRoles(): RoleDefinition[] {
+  return DEFAULT_ROLE_DEFINITIONS.map((r) => ({
+    ...r,
+    entitlements: [...r.entitlements],
+    createdAt: new Date().toISOString(),
+  }));
+}
 
 function defaultState(): DemoState {
   return {
@@ -58,6 +73,8 @@ function defaultState(): DemoState {
     favorites: [],
     conversations: [],
     messages: [],
+    roles: defaultRoles(),
+    ads: [],
     sessionUserId: null,
     passwords: {
       'demo@materialloop.ro': 'demo1234',
@@ -66,6 +83,10 @@ function defaultState(): DemoState {
     },
     pendingPhone: null,
   };
+}
+
+function applyRoleCatalog(roles: RoleDefinition[]) {
+  setRoleDefinitions(roles);
 }
 
 async function load() {
@@ -77,6 +98,7 @@ async function load() {
         const raw = await AsyncStorage.getItem(STORAGE_KEY);
         if (!raw) {
           memory = defaults;
+          applyRoleCatalog(memory.roles);
           return;
         }
         const parsed = JSON.parse(raw) as Partial<DemoState>;
@@ -84,6 +106,13 @@ async function load() {
         const profiles = (parsed.profiles?.length ? parsed.profiles : defaults.profiles).map(
           (p) => ({ ...p, roles: normalizeRoles(p.roles) }),
         );
+        const roles =
+          parsed.roles?.length
+            ? parsed.roles.map((r) => ({
+                ...r,
+                entitlements: filterKnownEntitlements(r.entitlements),
+              }))
+            : defaults.roles;
         memory = {
           profiles,
           listings: parsed.listings?.length ? parsed.listings : defaults.listings,
@@ -91,17 +120,24 @@ async function load() {
           favorites: parsed.favorites ?? [],
           conversations: parsed.conversations ?? [],
           messages: parsed.messages ?? [],
+          roles,
+          ads: parsed.ads ?? [],
           sessionUserId: parsed.sessionUserId ?? null,
           passwords: { ...defaults.passwords, ...(parsed.passwords ?? {}) },
           pendingPhone: parsed.pendingPhone ?? null,
         };
+        applyRoleCatalog(memory.roles);
       } catch {
         memory = defaults;
+        applyRoleCatalog(memory.roles);
       }
     })();
   }
   await ready;
-  return memory!;
+  const state = memory ?? defaultState();
+  memory = state;
+  applyRoleCatalog(state.roles);
+  return state;
 }
 
 async function save() {
@@ -133,6 +169,115 @@ function enrich(listing: Listing, state: DemoState, center?: { lat: number; lng:
 export const demoDb = {
   async reset() {
     memory = defaultState();
+    applyRoleCatalog(memory.roles);
+    await save();
+  },
+
+  async loadRoleCatalog() {
+    const state = await load();
+    applyRoleCatalog(state.roles);
+    return [...state.roles].sort((a, b) => a.id.localeCompare(b.id));
+  },
+
+  async listRoles() {
+    return this.loadRoleCatalog();
+  },
+
+  async upsertRole(input: {
+    id: string;
+    label: string;
+    description?: string;
+    entitlements: string[];
+  }) {
+    await this.requireEntitlement('admin.roles.manage');
+    const id = input.id.trim().toLowerCase();
+    if (!isValidRoleSlug(id)) {
+      throw new Error('ID rol invalid. Folosește litere mici, cifre, _ sau -.');
+    }
+    const label = input.label.trim();
+    if (!label) throw new Error('Completează eticheta rolului.');
+    const state = await load();
+    const entitlements = filterKnownEntitlements(input.entitlements);
+    const existing = state.roles.find((r) => r.id === id);
+    const next: RoleDefinition = {
+      id,
+      label,
+      description: input.description?.trim() ?? '',
+      entitlements,
+      system: existing?.system ?? false,
+      createdAt: existing?.createdAt ?? new Date().toISOString(),
+    };
+    state.roles = [...state.roles.filter((r) => r.id !== id), next];
+    applyRoleCatalog(state.roles);
+    await save();
+    return next;
+  },
+
+  async deleteRole(roleId: string) {
+    await this.requireEntitlement('admin.roles.manage');
+    const state = await load();
+    const role = state.roles.find((r) => r.id === roleId);
+    if (!role) throw new Error('Rol negăsit.');
+    if (role.system) throw new Error('Rolurile de sistem nu pot fi șterse.');
+    state.roles = state.roles.filter((r) => r.id !== roleId);
+    state.profiles = state.profiles.map((p) => ({
+      ...p,
+      roles: normalizeRoles(p.roles.filter((r) => r !== roleId)),
+    }));
+    applyRoleCatalog(state.roles);
+    await save();
+  },
+
+  async listMarketingAds(): Promise<MarketingAd[]> {
+    await this.requireEntitlement('marketing.panel');
+    const state = await load();
+    return [...state.ads].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+  },
+
+  async upsertMarketingAd(input: {
+    id?: string;
+    title: string;
+    body: string;
+    active: boolean;
+  }): Promise<MarketingAd> {
+    const me = await this.requireEntitlement('marketing.ads');
+    const title = input.title.trim();
+    if (!title) throw new Error('Completează titlul anunțului.');
+    const state = await load();
+    const now = new Date().toISOString();
+    if (input.id) {
+      const idx = state.ads.findIndex((a) => a.id === input.id);
+      if (idx < 0) throw new Error('Anunț negăsit.');
+      state.ads[idx] = {
+        ...state.ads[idx],
+        title,
+        body: input.body.trim(),
+        active: input.active,
+        updatedAt: now,
+      };
+      await save();
+      return state.ads[idx];
+    }
+    const ad: MarketingAd = {
+      id: createId('ad'),
+      title,
+      body: input.body.trim(),
+      active: input.active,
+      createdBy: me.id,
+      createdAt: now,
+      updatedAt: now,
+    };
+    state.ads.unshift(ad);
+    await save();
+    return ad;
+  },
+
+  async deleteMarketingAd(adId: string) {
+    await this.requireEntitlement('marketing.ads');
+    const state = await load();
+    state.ads = state.ads.filter((a) => a.id !== adId);
     await save();
   },
 
@@ -224,7 +369,7 @@ export const demoDb = {
 
   async adminUpdateUser(
     targetUserId: string,
-    patch: { roles?: UserRole[]; setAdmin?: boolean; deactivated?: boolean },
+    patch: { roles?: UserRole[]; deactivated?: boolean },
   ) {
     const actor = await this.requireEntitlement('admin.users.manage');
     const state = await load();
@@ -232,11 +377,9 @@ export const demoDb = {
     if (idx < 0) throw new Error('Utilizator negăsit.');
     const next = { ...state.profiles[idx] };
     if (patch.roles !== undefined) next.roles = normalizeRoles(patch.roles);
-    else if (patch.setAdmin !== undefined) next.roles = rolesWithAdmin(patch.setAdmin, next.roles);
     if (patch.deactivated === true) next.deactivatedAt = new Date().toISOString();
     if (patch.deactivated === false) next.deactivatedAt = null;
 
-    // Block removing your own admin.panel entitlement / self-deactivate.
     if (actor.id === targetUserId) {
       if (!hasEntitlement(next, 'admin.panel')) {
         throw new Error('Nu îți poți elimina propriul drept de administrator.');

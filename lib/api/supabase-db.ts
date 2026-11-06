@@ -8,9 +8,11 @@ import { approximateCoords, daysFromNow, haversineKm } from '@/lib/geo';
 import { LISTING_EXPIRY_DAYS } from '@/lib/config';
 import {
   assertEntitlement,
+  filterKnownEntitlements,
   hasEntitlement,
+  isValidRoleSlug,
   normalizeRoles,
-  rolesWithAdmin,
+  setRoleDefinitions,
   type Entitlement,
 } from '@/lib/entitlements';
 import { normalizeRoPhone } from '@/lib/phone';
@@ -20,7 +22,9 @@ import type {
   ConversationWithMeta,
   ListingDraft,
   ListingStatus,
+  MarketingAd,
   Profile,
+  RoleDefinition,
   SearchFilters,
   UserRole,
 } from '@/lib/types';
@@ -285,17 +289,99 @@ export const supabaseDb = {
     return ((data ?? []) as DbProfile[]).map(mapProfile);
   },
 
+  async loadRoleCatalog() {
+    const { data, error } = await client()
+      .from('roles')
+      .select('id, label, description, entitlements, system, created_at')
+      .order('id');
+    if (error) throw new Error(error.message);
+    const roles: RoleDefinition[] = ((data ?? []) as Array<{
+      id: string;
+      label: string;
+      description: string;
+      entitlements: string[] | null;
+      system: boolean;
+      created_at: string;
+    }>).map((row) => ({
+      id: row.id,
+      label: row.label,
+      description: row.description ?? '',
+      entitlements: filterKnownEntitlements(row.entitlements),
+      system: Boolean(row.system),
+      createdAt: row.created_at,
+    }));
+    setRoleDefinitions(roles);
+    return roles;
+  },
+
+  async listRoles() {
+    return this.loadRoleCatalog();
+  },
+
+  async upsertRole(input: {
+    id: string;
+    label: string;
+    description?: string;
+    entitlements: string[];
+  }) {
+    await this.requireEntitlement('admin.roles.manage');
+    const id = input.id.trim().toLowerCase();
+    if (!isValidRoleSlug(id)) {
+      throw new Error('ID rol invalid. Folosește litere mici, cifre, _ sau -.');
+    }
+    const label = input.label.trim();
+    if (!label) throw new Error('Completează eticheta rolului.');
+    const entitlements = filterKnownEntitlements(input.entitlements);
+
+    const { data, error } = await client()
+      .from('roles')
+      .upsert(
+        {
+          id,
+          label,
+          description: input.description?.trim() ?? '',
+          entitlements,
+        },
+        { onConflict: 'id' },
+      )
+      .select('id, label, description, entitlements, system, created_at')
+      .single();
+    if (error) throw new Error(error.message);
+    await this.loadRoleCatalog();
+    const row = data as {
+      id: string;
+      label: string;
+      description: string;
+      entitlements: string[] | null;
+      system: boolean;
+      created_at: string;
+    };
+    return {
+      id: row.id,
+      label: row.label,
+      description: row.description ?? '',
+      entitlements: filterKnownEntitlements(row.entitlements),
+      system: Boolean(row.system),
+      createdAt: row.created_at,
+    } satisfies RoleDefinition;
+  },
+
+  async deleteRole(roleId: string) {
+    await this.requireEntitlement('admin.roles.manage');
+    const { error } = await client().from('roles').delete().eq('id', roleId);
+    if (error) throw new Error(error.message);
+    await this.loadRoleCatalog();
+  },
+
   async adminUpdateUser(
     targetUserId: string,
-    patch: { roles?: UserRole[]; setAdmin?: boolean; deactivated?: boolean },
+    patch: { roles?: UserRole[]; deactivated?: boolean },
   ) {
     const actor = await this.requireEntitlement('admin.users.manage');
     const current = await fetchProfile(targetUserId);
     if (!current) throw new Error('Utilizator negăsit.');
 
-    let nextRoles = current.roles;
-    if (patch.roles !== undefined) nextRoles = normalizeRoles(patch.roles);
-    else if (patch.setAdmin !== undefined) nextRoles = rolesWithAdmin(patch.setAdmin, current.roles);
+    const nextRoles = patch.roles !== undefined ? normalizeRoles(patch.roles) : current.roles;
 
     const nextDeactivatedAt =
       patch.deactivated === true
@@ -314,7 +400,7 @@ export const supabaseDb = {
     }
 
     const update: Record<string, unknown> = {};
-    if (patch.roles !== undefined || patch.setAdmin !== undefined) update.roles = nextRoles;
+    if (patch.roles !== undefined) update.roles = nextRoles;
     if (patch.deactivated === true) update.deactivated_at = nextDeactivatedAt;
     if (patch.deactivated === false) update.deactivated_at = null;
 
@@ -326,6 +412,95 @@ export const supabaseDb = {
       .single();
     if (error) throw new Error(error.message);
     return mapProfile(data as DbProfile);
+  },
+
+  async listMarketingAds(): Promise<MarketingAd[]> {
+    await this.requireEntitlement('marketing.panel');
+    const { data, error } = await client()
+      .from('marketing_ads')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) throw new Error(error.message);
+    return ((data ?? []) as Array<{
+      id: string;
+      title: string;
+      body: string;
+      active: boolean;
+      created_by: string | null;
+      created_at: string;
+      updated_at: string;
+    }>).map((row) => ({
+      id: row.id,
+      title: row.title,
+      body: row.body ?? '',
+      active: Boolean(row.active),
+      createdBy: row.created_by,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }));
+  },
+
+  async upsertMarketingAd(input: {
+    id?: string;
+    title: string;
+    body: string;
+    active: boolean;
+  }): Promise<MarketingAd> {
+    const me = await this.requireEntitlement('marketing.ads');
+    const title = input.title.trim();
+    if (!title) throw new Error('Completează titlul anunțului.');
+    const now = new Date().toISOString();
+    const sb = client();
+    const query = input.id
+      ? sb
+          .from('marketing_ads')
+          .update({
+            title,
+            body: input.body.trim(),
+            active: input.active,
+            updated_at: now,
+          })
+          .eq('id', input.id)
+          .select('*')
+          .single()
+      : sb
+          .from('marketing_ads')
+          .insert({
+            title,
+            body: input.body.trim(),
+            active: input.active,
+            created_by: me.id,
+            created_at: now,
+            updated_at: now,
+          })
+          .select('*')
+          .single();
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    const row = data as {
+      id: string;
+      title: string;
+      body: string;
+      active: boolean;
+      created_by: string | null;
+      created_at: string;
+      updated_at: string;
+    };
+    return {
+      id: row.id,
+      title: row.title,
+      body: row.body ?? '',
+      active: Boolean(row.active),
+      createdBy: row.created_by,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+  },
+
+  async deleteMarketingAd(adId: string) {
+    await this.requireEntitlement('marketing.ads');
+    const { error } = await client().from('marketing_ads').delete().eq('id', adId);
+    if (error) throw new Error(error.message);
   },
 
   async adminGetAnalytics(): Promise<AdminAnalytics> {

@@ -1,8 +1,8 @@
-import type { Profile, UserRole } from '@/lib/types';
+import type { Profile, RoleDefinition, UserRole } from '@/lib/types';
 
 /**
  * Capability catalog. UI and APIs MUST gate on entitlements, never on role names.
- * Add a new entitlement here, then attach it to one or more roles in ROLE_DEFINITIONS.
+ * Entitlement IDs are fixed in code — admin only links them to DB roles.
  */
 export const ENTITLEMENTS = [
   'app.access',
@@ -16,23 +16,19 @@ export const ENTITLEMENTS = [
   'admin.users.manage',
   'admin.users.email',
   'admin.analytics',
+  'admin.roles.manage',
+  'marketing.panel',
+  'marketing.ads',
+  'marketing.email',
 ] as const;
 
 export type Entitlement = (typeof ENTITLEMENTS)[number];
 
-export type RoleDefinition = {
-  id: UserRole;
-  /** Capabilities granted by this role. Edit this list to show/hide features. */
-  entitlements: readonly Entitlement[];
-};
+export const ENTITLEMENT_SET = new Set<string>(ENTITLEMENTS);
 
-/**
- * Role → entitlements map (assignment config only).
- * Access checks go through hasEntitlement / can(...), not ROLE_DEFINITIONS directly.
- */
-export const ROLE_DEFINITIONS: Record<UserRole, RoleDefinition> = {
-  user: {
-    id: 'user',
+export const ENTITLEMENT_GROUPS: { id: string; entitlements: readonly Entitlement[] }[] = [
+  {
+    id: 'app',
     entitlements: [
       'app.access',
       'listings.create',
@@ -42,8 +38,43 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleDefinition> = {
       'profile.edit',
     ],
   },
-  admin: {
+  {
     id: 'admin',
+    entitlements: [
+      'admin.panel',
+      'admin.users.read',
+      'admin.users.manage',
+      'admin.users.email',
+      'admin.analytics',
+      'admin.roles.manage',
+    ],
+  },
+  {
+    id: 'marketing',
+    entitlements: ['marketing.panel', 'marketing.ads', 'marketing.email'],
+  },
+];
+
+/** Built-in seed used before/without DB catalog (demo + fallback). */
+export const DEFAULT_ROLE_DEFINITIONS: RoleDefinition[] = [
+  {
+    id: 'user',
+    label: 'User',
+    description: 'Default marketplace member',
+    entitlements: [
+      'app.access',
+      'listings.create',
+      'listings.manage_own',
+      'messages.use',
+      'favorites.use',
+      'profile.edit',
+    ],
+    system: true,
+  },
+  {
+    id: 'admin',
+    label: 'Admin',
+    description: 'Full administration',
     entitlements: [
       'app.access',
       'listings.create',
@@ -56,17 +87,83 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleDefinition> = {
       'admin.users.manage',
       'admin.users.email',
       'admin.analytics',
+      'admin.roles.manage',
+      'marketing.panel',
+      'marketing.ads',
+      'marketing.email',
     ],
+    system: true,
   },
-};
+  {
+    id: 'marketing',
+    label: 'Marketing',
+    description: 'Ads and outreach',
+    entitlements: [
+      'app.access',
+      'admin.users.read',
+      'marketing.panel',
+      'marketing.ads',
+      'marketing.email',
+    ],
+    system: false,
+  },
+];
 
-const KNOWN_ROLES = new Set<UserRole>(['user', 'admin']);
+/** @deprecated Prefer getRoleDefinitions() — kept for migration seed references. */
+export const ROLE_DEFINITIONS: Record<string, RoleDefinition> = Object.fromEntries(
+  DEFAULT_ROLE_DEFINITIONS.map((r) => [r.id, r]),
+);
+
+const ROLE_SLUG = /^[a-z][a-z0-9_-]*$/;
+
+let roleCatalog: RoleDefinition[] = DEFAULT_ROLE_DEFINITIONS.map((r) => ({
+  ...r,
+  entitlements: [...r.entitlements],
+}));
+
+export function getRoleDefinitions(): RoleDefinition[] {
+  return roleCatalog;
+}
+
+export function getRoleDefinition(id: string): RoleDefinition | undefined {
+  return roleCatalog.find((r) => r.id === id);
+}
+
+/** Replace in-memory role → entitlements map (from DB or demo). */
+export function setRoleDefinitions(roles: RoleDefinition[]) {
+  if (!roles.length) {
+    roleCatalog = DEFAULT_ROLE_DEFINITIONS.map((r) => ({
+      ...r,
+      entitlements: [...r.entitlements],
+    }));
+    return;
+  }
+  roleCatalog = roles.map((r) => ({
+    ...r,
+    entitlements: filterKnownEntitlements(r.entitlements),
+  }));
+}
+
+export function filterKnownEntitlements(raw: readonly string[] | null | undefined): Entitlement[] {
+  const list = raw ?? [];
+  return Array.from(
+    new Set(list.filter((e): e is Entitlement => ENTITLEMENT_SET.has(e))),
+  );
+}
+
+export function isValidRoleSlug(id: string): boolean {
+  return ROLE_SLUG.test(id);
+}
 
 /** Normalize one or many roles; always returns at least `user` when empty. */
 export function normalizeRoles(input?: UserRole | UserRole[] | null): UserRole[] {
   const list = Array.isArray(input) ? input : input ? [input] : [];
   const unique = Array.from(
-    new Set(list.filter((r): r is UserRole => Boolean(r) && KNOWN_ROLES.has(r as UserRole))),
+    new Set(
+      list
+        .map((r) => String(r || '').trim().toLowerCase())
+        .filter((r) => r && isValidRoleSlug(r)),
+    ),
   );
   return unique.length ? unique : ['user'];
 }
@@ -82,14 +179,13 @@ export function parseRolesInput(raw: unknown): UserRole[] {
   const trimmed = raw.trim();
   if (!trimmed) return ['user'];
 
-  // Postgres text[] literal: {user,admin}
   if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
     return normalizeRoles(
       trimmed
         .slice(1, -1)
         .split(',')
         .map((s) => s.trim().replace(/^"|"$/g, ''))
-        .filter(Boolean) as UserRole[],
+        .filter(Boolean),
     );
   }
 
@@ -100,16 +196,16 @@ export function parseRolesInput(raw: unknown): UserRole[] {
     /* not JSON */
   }
 
-  return normalizeRoles(trimmed.split(',').map((s) => s.trim()).filter(Boolean) as UserRole[]);
+  return normalizeRoles(trimmed.split(',').map((s) => s.trim()).filter(Boolean));
 }
 
-/** Union of entitlements from all assigned roles. */
+/** Union of entitlements from all assigned roles (via current catalog). */
 export function resolveEntitlements(roles: UserRole[] | null | undefined): Entitlement[] {
   const set = new Set<Entitlement>();
   for (const role of normalizeRoles(roles)) {
-    const def = ROLE_DEFINITIONS[role];
+    const def = getRoleDefinition(role);
     if (!def) continue;
-    for (const e of def.entitlements) set.add(e);
+    for (const e of filterKnownEntitlements(def.entitlements)) set.add(e);
   }
   return Array.from(set);
 }
@@ -157,13 +253,4 @@ export function assertEntitlement(
   if (!hasEntitlement(subject, entitlement)) {
     throw new Error(message);
   }
-}
-
-/**
- * Role mutation helper (admin tools). This changes roles so entitlements change.
- * Never use this for access checks — use hasEntitlement / can(...).
- */
-export function rolesWithAdmin(enabled: boolean, current?: UserRole[]): UserRole[] {
-  if (enabled) return normalizeRoles([...(current ?? []), 'user', 'admin']);
-  return ['user'];
 }

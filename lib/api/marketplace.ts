@@ -33,12 +33,29 @@ export const marketplace = {
     api.confirmPhoneVerification(userId, phone, token),
   clearPhone: (userId: string) => api.clearPhone(userId),
   deleteAccount: (userId: string) => api.deleteAccount(userId),
+  loadRoleCatalog: () => api.loadRoleCatalog(),
+  listRoles: () => api.listRoles(),
+  upsertRole: (input: {
+    id: string;
+    label: string;
+    description?: string;
+    entitlements: string[];
+  }) => api.upsertRole(input),
+  deleteRole: (roleId: string) => api.deleteRole(roleId),
   adminListUsers: () => api.adminListUsers(),
   adminUpdateUser: (
     targetUserId: string,
-    patch: { roles?: UserRole[]; setAdmin?: boolean; deactivated?: boolean },
+    patch: { roles?: UserRole[]; deactivated?: boolean },
   ) => api.adminUpdateUser(targetUserId, patch),
   adminGetAnalytics: () => api.adminGetAnalytics(),
+  listMarketingAds: () => api.listMarketingAds(),
+  upsertMarketingAd: (input: {
+    id?: string;
+    title: string;
+    body: string;
+    active: boolean;
+  }) => api.upsertMarketingAd(input),
+  deleteMarketingAd: (adId: string) => api.deleteMarketingAd(adId),
   getProfile: (userId: string) => api.getProfile(userId),
   search: (filters?: SearchFilters) => api.search(filters),
   getListing: (id: string, center?: { lat: number; lng: number }) => api.getListing(id, center),

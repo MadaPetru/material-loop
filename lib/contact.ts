@@ -41,13 +41,18 @@ export function buildContactMailto(params: {
   return `mailto:${SUPPORT_EMAIL}?${query}`;
 }
 
-/** Admin → user email draft (opens local mail client). */
+/** Admin / marketing → user email draft (opens local mail client). */
 export function buildAdminUserMailto(params: {
-  toEmail: string;
+  toEmail: string | string[];
   subject?: string;
   message?: string;
   adminName?: string | null;
 }) {
+  const emails = (Array.isArray(params.toEmail) ? params.toEmail : [params.toEmail])
+    .map((e) => e.trim())
+    .filter(Boolean);
+  if (!emails.length) throw new Error('No recipient email.');
+
   const subject = params.subject?.trim() || '[MaterialLoop] Message from administration';
   const body = [
     params.message?.trim() || '',
@@ -59,10 +64,14 @@ export function buildAdminUserMailto(params: {
     .filter((line): line is string => line != null)
     .join('\n');
 
-  const query = [
+  const parts = [
     `subject=${encodeURIComponent(subject)}`,
     `body=${encodeURIComponent(body)}`,
-  ].join('&');
+  ];
+  // One primary To; extra recipients as BCC when the URL stays reasonably short.
+  const to = emails[0];
+  const bcc = emails.slice(1);
+  if (bcc.length) parts.push(`bcc=${encodeURIComponent(bcc.join(','))}`);
 
-  return `mailto:${params.toEmail}?${query}`;
+  return `mailto:${to}?${parts.join('&')}`;
 }
