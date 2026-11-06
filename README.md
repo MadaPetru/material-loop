@@ -28,7 +28,8 @@ npm start            # Expo Go pe telefon
 
 Fără variabile Supabase, aplicația pornește în **mod demonstrație** (date pe dispozitiv).
 
-Cont demo: `demo@materialloop.ro` / `demo1234`
+Cont demo: `demo@materialloop.ro` / `demo1234`  
+Cont admin demo: `admin@materialloop.ro` / `demo1234` (tab **Admin**)
 
 ## Conectare Supabase
 
@@ -45,6 +46,8 @@ cp .env.example .env
 6. Pentru **ștergere cont** (hard delete Auth): deploy Edge Function-ul din repo:
    `npx supabase functions deploy delete-account`
    (necesită proiect link-uit). Fără el, app-ul face un soft-delete (profil dezactivat + anunțuri ascunse) și te deconectează.
+7. Pentru **rol admin** pe Supabase: aplică migrarea `008_admin_rls.sql`, apoi:
+   `update profiles set role = 'admin' where email = 'you@example.com';`
 
 ## Deploy web (Vercel)
 

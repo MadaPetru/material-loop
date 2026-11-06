@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { LanguageSelector } from '@/components/ui/LanguageSelector';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocale } from '@/contexts/LocaleContext';
+import { isAdmin } from '@/lib/entitlements';
 import { colors, fonts, radii, spacing } from '@/lib/theme';
 
 export function DesktopNav() {
@@ -22,12 +23,21 @@ export function DesktopNav() {
     { href: '/favorites', label: t('nav.favorites'), match: (p: string) => p.startsWith('/favorites') },
     { href: '/messages', label: t('nav.messages'), match: (p: string) => p.startsWith('/messages') },
     { href: '/contact', label: t('nav.contact'), match: (p: string) => p.startsWith('/contact') },
+    ...(isAdmin(user)
+      ? [
+          {
+            href: '/admin',
+            label: t('nav.admin'),
+            match: (p: string) => p.startsWith('/admin'),
+          },
+        ]
+      : []),
     {
       href: '/profile',
       label: t('nav.profile'),
       match: (p: string) => p.startsWith('/profile') || p.startsWith('/u/'),
     },
-  ] as const;
+  ];
 
   return (
     <View style={styles.bar}>

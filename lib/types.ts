@@ -96,6 +96,16 @@ export interface Profile {
   deactivatedAt: string | null;
 }
 
+export interface AdminAnalytics {
+  usersTotal: number;
+  usersActive: number;
+  usersDeactivated: number;
+  admins: number;
+  listingsActive: number;
+  listingsTotal: number;
+  conversations: number;
+}
+
 export interface ListingPhoto {
   id: string;
   listingId: string;

@@ -10,6 +10,7 @@ import { Screen } from '@/components/ui/Screen';
 import { formatCityCounty } from '@/data/romania';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocale } from '@/contexts/LocaleContext';
+import { isAdmin } from '@/lib/entitlements';
 import { formatRoPhoneDisplay } from '@/lib/phone';
 import { toUserError } from '@/lib/userErrors';
 import { colors, fonts, radii, spacing } from '@/lib/theme';
@@ -67,6 +68,7 @@ export default function ProfileScreen() {
         <Text style={styles.meta}>
           {user.cityId ? formatCityCounty(user.cityId) : t('profile.locationUnset')} ·{' '}
           {user.accountType === 'business' ? t('profile.business') : t('profile.individual')}
+          {isAdmin(user) ? ` · ${t('admin.roleAdmin')}` : ''}
         </Text>
         {user.sellerRating != null ? (
           <Text style={styles.meta}>

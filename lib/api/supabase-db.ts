@@ -6,14 +6,17 @@ import { COUNTRY_RO, COUNTIES, CITIES, getCity } from '@/data/romania';
 import { createSessionFromUrl, getOAuthRedirectTo, oauthErrorMessage } from '@/lib/auth/oauth';
 import { approximateCoords, daysFromNow, haversineKm } from '@/lib/geo';
 import { LISTING_EXPIRY_DAYS } from '@/lib/config';
+import { isAdmin } from '@/lib/entitlements';
 import { normalizeRoPhone } from '@/lib/phone';
 import { getSupabase } from '@/lib/supabase';
 import type {
+  AdminAnalytics,
   ConversationWithMeta,
   ListingDraft,
   ListingStatus,
   Profile,
   SearchFilters,
+  UserRole,
 } from '@/lib/types';
 import {
   enrichListing,
@@ -241,7 +244,7 @@ export const supabaseDb = {
     if (patch.avatarUrl !== undefined) update.avatar_url = patch.avatarUrl;
     if (patch.accountType !== undefined) update.account_type = patch.accountType;
     if (patch.cityId !== undefined) update.city_id = patch.cityId;
-    // Phone is only updated via requestPhoneVerification / confirmPhoneVerification.
+    // Phone / role / deactivation are managed through dedicated flows.
     if (patch.bio !== undefined) update.bio = patch.bio;
     if (patch.lat != null && patch.lng != null) {
       update.location = toEwkt(patch.lat, patch.lng);
@@ -258,6 +261,81 @@ export const supabaseDb = {
       .single();
     if (error) throw new Error(error.message);
     return mapProfile(data as DbProfile);
+  },
+
+  async requireAdmin() {
+    const me = await this.getSession();
+    if (!isAdmin(me)) throw new Error('Acces interzis. Doar administratorii pot face asta.');
+    return me!;
+  },
+
+  async adminListUsers() {
+    await this.requireAdmin();
+    const { data, error } = await client()
+      .from('profiles')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) throw new Error(error.message);
+    return ((data ?? []) as DbProfile[]).map(mapProfile);
+  },
+
+  async adminUpdateUser(
+    targetUserId: string,
+    patch: { role?: UserRole; deactivated?: boolean },
+  ) {
+    const admin = await this.requireAdmin();
+    if (admin.id === targetUserId && patch.role === 'user') {
+      throw new Error('Nu îți poți elimina propriul rol de administrator.');
+    }
+    if (admin.id === targetUserId && patch.deactivated === true) {
+      throw new Error('Nu îți poți dezactiva propriul cont din panoul admin.');
+    }
+
+    const update: Record<string, unknown> = {};
+    if (patch.role !== undefined) update.role = patch.role;
+    if (patch.deactivated === true) update.deactivated_at = new Date().toISOString();
+    if (patch.deactivated === false) update.deactivated_at = null;
+
+    const { data, error } = await client()
+      .from('profiles')
+      .update(update)
+      .eq('id', targetUserId)
+      .select('*')
+      .single();
+    if (error) throw new Error(error.message);
+    return mapProfile(data as DbProfile);
+  },
+
+  async adminGetAnalytics(): Promise<AdminAnalytics> {
+    await this.requireAdmin();
+    const sb = client();
+    const [
+      { data: profiles, error: profilesError },
+      { count: activeListings, error: activeError },
+      { count: totalListings, error: totalError },
+      { count: conversations, error: convError },
+    ] = await Promise.all([
+      sb.from('profiles').select('role, deactivated_at'),
+      sb.from('listings').select('*', { count: 'exact', head: true }).eq('status', 'active'),
+      sb.from('listings').select('*', { count: 'exact', head: true }).neq('status', 'removed'),
+      sb.from('conversations').select('*', { count: 'exact', head: true }),
+    ]);
+    if (profilesError) throw new Error(profilesError.message);
+    if (activeError) throw new Error(activeError.message);
+    if (totalError) throw new Error(totalError.message);
+    if (convError) throw new Error(convError.message);
+
+    const rows = (profiles ?? []) as Array<{ role: string; deactivated_at: string | null }>;
+    const usersActive = rows.filter((p) => !p.deactivated_at).length;
+    return {
+      usersTotal: rows.length,
+      usersActive,
+      usersDeactivated: rows.length - usersActive,
+      admins: rows.filter((p) => p.role === 'admin' && !p.deactivated_at).length,
+      listingsActive: activeListings ?? 0,
+      listingsTotal: totalListings ?? 0,
+      conversations: conversations ?? 0,
+    };
   },
 
   async requestPhoneVerification(userId: string, phoneInput: string) {

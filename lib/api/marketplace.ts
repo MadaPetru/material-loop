@@ -1,7 +1,7 @@
 import { IS_DEMO } from '@/lib/config';
 import { demoDb } from './demo-db';
 import { supabaseDb } from './supabase-db';
-import type { ListingDraft, Profile, SearchFilters } from '@/lib/types';
+import type { ListingDraft, Profile, SearchFilters, UserRole } from '@/lib/types';
 
 const api = IS_DEMO ? demoDb : supabaseDb;
 
@@ -33,6 +33,10 @@ export const marketplace = {
     api.confirmPhoneVerification(userId, phone, token),
   clearPhone: (userId: string) => api.clearPhone(userId),
   deleteAccount: (userId: string) => api.deleteAccount(userId),
+  adminListUsers: () => api.adminListUsers(),
+  adminUpdateUser: (targetUserId: string, patch: { role?: UserRole; deactivated?: boolean }) =>
+    api.adminUpdateUser(targetUserId, patch),
+  adminGetAnalytics: () => api.adminGetAnalytics(),
   getProfile: (userId: string) => api.getProfile(userId),
   search: (filters?: SearchFilters) => api.search(filters),
   getListing: (id: string, center?: { lat: number; lng: number }) => api.getListing(id, center),

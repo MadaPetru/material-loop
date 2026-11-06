@@ -40,3 +40,29 @@ export function buildContactMailto(params: {
 
   return `mailto:${SUPPORT_EMAIL}?${query}`;
 }
+
+/** Admin → user email draft (opens local mail client). */
+export function buildAdminUserMailto(params: {
+  toEmail: string;
+  subject?: string;
+  message?: string;
+  adminName?: string | null;
+}) {
+  const subject = params.subject?.trim() || '[MaterialLoop] Message from administration';
+  const body = [
+    params.message?.trim() || '',
+    '',
+    '---',
+    'MaterialLoop administration',
+    params.adminName ? `Sent by: ${params.adminName}` : null,
+  ]
+    .filter((line): line is string => line != null)
+    .join('\n');
+
+  const query = [
+    `subject=${encodeURIComponent(subject)}`,
+    `body=${encodeURIComponent(body)}`,
+  ].join('&');
+
+  return `mailto:${params.toEmail}?${query}`;
+}

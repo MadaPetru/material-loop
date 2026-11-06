@@ -80,6 +80,25 @@ export const SEED_PROFILES: Profile[] = [
     createdAt: now,
     deactivatedAt: null,
   },
+  {
+    id: 'user_admin',
+    email: 'admin@materialloop.ro',
+    displayName: 'Admin MaterialLoop',
+    avatarUrl: null,
+    accountType: 'business',
+    role: 'admin',
+    cityId: 'bh-oradea',
+    phone: null,
+    phoneVerifiedAt: null,
+    bio: 'Cont administrator demo.',
+    lat: 47.05,
+    lng: 21.92,
+    sellerRating: null,
+    ratingCount: 0,
+    completedSales: 0,
+    createdAt: now,
+    deactivatedAt: null,
+  },
 ];
 
 export const SEED_LISTINGS: Listing[] = [

@@ -6,7 +6,9 @@ import { approximateCoords, daysFromNow, haversineKm } from '@/lib/geo';
 import { createId } from '@/lib/id';
 import { LISTING_EXPIRY_DAYS } from '@/lib/config';
 import { normalizeRoPhone } from '@/lib/phone';
+import { isAdmin } from '@/lib/entitlements';
 import type {
+  AdminAnalytics,
   ChatMessage,
   Conversation,
   ConversationWithMeta,
@@ -17,10 +19,11 @@ import type {
   ListingWithRelations,
   Profile,
   SearchFilters,
+  UserRole,
 } from '@/lib/types';
 import { otherParticipantId, withMeta } from './messaging-shared';
 
-const STORAGE_KEY = 'materialloop.demo.v3';
+const STORAGE_KEY = 'materialloop.demo.v4';
 
 /** Demo OTP always accepts this code (and any 6 digits after send). */
 export const DEMO_PHONE_OTP = '123456';
@@ -54,6 +57,7 @@ function defaultState(): DemoState {
     passwords: {
       'demo@materialloop.ro': 'demo1234',
       'ana@example.ro': 'demo1234',
+      'admin@materialloop.ro': 'demo1234',
     },
     pendingPhone: null,
   };
@@ -182,11 +186,71 @@ export const demoDb = {
     const state = await load();
     const idx = state.profiles.findIndex((p) => p.id === userId);
     if (idx < 0) throw new Error('Profil negăsit.');
-    // Phone is only updated via requestPhoneVerification / confirmPhoneVerification.
-    const { phone: _phone, phoneVerifiedAt: _verified, ...safe } = patch;
+    // Phone / role / deactivation are managed through dedicated flows.
+    const {
+      phone: _phone,
+      phoneVerifiedAt: _verified,
+      role: _role,
+      deactivatedAt: _deactivated,
+      ...safe
+    } = patch;
     state.profiles[idx] = { ...state.profiles[idx], ...safe, id: userId };
     await save();
     return state.profiles[idx];
+  },
+
+  async requireAdmin() {
+    const state = await load();
+    const me = state.profiles.find((p) => p.id === state.sessionUserId) ?? null;
+    if (!isAdmin(me)) throw new Error('Acces interzis. Doar administratorii pot face asta.');
+    return me!;
+  },
+
+  async adminListUsers() {
+    await this.requireAdmin();
+    const state = await load();
+    return [...state.profiles].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+  },
+
+  async adminUpdateUser(
+    targetUserId: string,
+    patch: { role?: UserRole; deactivated?: boolean },
+  ) {
+    const admin = await this.requireAdmin();
+    if (admin.id === targetUserId && patch.role === 'user') {
+      throw new Error('Nu îți poți elimina propriul rol de administrator.');
+    }
+    if (admin.id === targetUserId && patch.deactivated === true) {
+      throw new Error('Nu îți poți dezactiva propriul cont din panoul admin.');
+    }
+    const state = await load();
+    const idx = state.profiles.findIndex((p) => p.id === targetUserId);
+    if (idx < 0) throw new Error('Utilizator negăsit.');
+    const next = { ...state.profiles[idx] };
+    if (patch.role !== undefined) next.role = patch.role;
+    if (patch.deactivated === true) next.deactivatedAt = new Date().toISOString();
+    if (patch.deactivated === false) next.deactivatedAt = null;
+    state.profiles[idx] = next;
+    await save();
+    return next;
+  },
+
+  async adminGetAnalytics(): Promise<AdminAnalytics> {
+    await this.requireAdmin();
+    const state = await load();
+    const usersActive = state.profiles.filter((p) => !p.deactivatedAt).length;
+    const usersDeactivated = state.profiles.length - usersActive;
+    return {
+      usersTotal: state.profiles.length,
+      usersActive,
+      usersDeactivated,
+      admins: state.profiles.filter((p) => p.role === 'admin' && !p.deactivatedAt).length,
+      listingsActive: state.listings.filter((l) => l.status === 'active').length,
+      listingsTotal: state.listings.filter((l) => l.status !== 'removed').length,
+      conversations: state.conversations.length,
+    };
   },
 
   async requestPhoneVerification(userId: string, phoneInput: string) {

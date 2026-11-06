@@ -3,7 +3,9 @@ import { Tabs, router } from 'expo-router';
 import { Platform, View, StyleSheet } from 'react-native';
 import { DesktopNav } from '@/components/layout/DesktopNav';
 import { LanguageSelector } from '@/components/ui/LanguageSelector';
+import { useAuth } from '@/contexts/AuthContext';
 import { useLocale } from '@/contexts/LocaleContext';
+import { isAdmin } from '@/lib/entitlements';
 import { colors, fonts } from '@/lib/theme';
 import { useResponsive } from '@/lib/useResponsive';
 
@@ -17,6 +19,8 @@ function TabIcon(props: {
 export default function TabLayout() {
   const { isDesktop, isTablet } = useResponsive();
   const { t, locale } = useLocale();
+  const { user } = useAuth();
+  const showAdmin = isAdmin(user);
   const hideTabBar = isDesktop;
 
   return (
@@ -115,6 +119,21 @@ export default function TabLayout() {
             tabPress: (e) => {
               e.preventDefault();
               router.navigate('/contact');
+            },
+          }}
+        />
+        <Tabs.Screen
+          name="admin"
+          options={{
+            title: t('nav.admin'),
+            href: showAdmin ? '/admin' : null,
+            headerShown: !isDesktop,
+            tabBarIcon: ({ color }) => <TabIcon name="shield" color={String(color)} />,
+          }}
+          listeners={{
+            tabPress: (e) => {
+              e.preventDefault();
+              if (showAdmin) router.navigate('/admin');
             },
           }}
         />
