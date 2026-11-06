@@ -203,18 +203,12 @@ export default function AdminScreen() {
     setMailTarget(targets);
     if (draft) {
       setMailSubject(draft.title);
-      setMailBody(
-        targets.length === 1
-          ? draft.body.split('%{name}').join(targets[0].displayName)
-          : draft.body.split('%{name}').join(''),
-      );
+      setMailBody(draft.body);
       return;
     }
     setMailSubject(t('admin.emailSubjectDefault'));
     setMailBody(
-      targets.length === 1
-        ? t('admin.emailBodyDefault', { name: targets[0].displayName })
-        : t('admin.emailBodyDefaultMulti'),
+      targets.length === 1 ? t('admin.emailBodyDefault') : t('admin.emailBodyDefaultMulti'),
     );
   };
 
@@ -538,7 +532,7 @@ export default function AdminScreen() {
                 onPress={() =>
                   setAdForm({
                     title: t('admin.emailSubjectDefault'),
-                    body: t('admin.emailBodyDefault', { name: '%{name}' }),
+                    body: t('admin.emailBodyDefault'),
                     active: true,
                   })
                 }

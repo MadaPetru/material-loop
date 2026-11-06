@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CATEGORIES, SUBCATEGORIES } from '@/data/categories';
 import { COUNTRY_RO, COUNTIES, CITIES, getCity, getCounty } from '@/data/romania';
 import { SEED_LISTINGS, SEED_PHOTOS, SEED_PROFILES } from '@/data/seed-listings';
+import { SEED_MAIL_DRAFTS } from '@/data/seed-mail-drafts';
 import { approximateCoords, daysFromNow, haversineKm } from '@/lib/geo';
 import { createId } from '@/lib/id';
 import { LISTING_EXPIRY_DAYS } from '@/lib/config';
@@ -33,7 +34,7 @@ import type {
 } from '@/lib/types';
 import { otherParticipantId, withMeta } from './messaging-shared';
 
-const STORAGE_KEY = 'materialloop.demo.v7';
+const STORAGE_KEY = 'materialloop.demo.v8';
 
 /** Demo OTP always accepts this code (and any 6 digits after send). */
 export const DEMO_PHONE_OTP = '123456';
@@ -74,7 +75,7 @@ function defaultState(): DemoState {
     conversations: [],
     messages: [],
     roles: defaultRoles(),
-    ads: [],
+    ads: structuredClone(SEED_MAIL_DRAFTS),
     sessionUserId: null,
     passwords: {
       'demo@materialloop.ro': 'demo1234',
