@@ -18,6 +18,7 @@ type AuthContextValue = {
   requestPhoneVerification: (phone: string) => Promise<{ phone: string; demoCode?: string }>;
   confirmPhoneVerification: (phone: string, token: string) => Promise<void>;
   clearPhone: () => Promise<void>;
+  deleteAccount: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -115,6 +116,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!user) return;
         const next = await marketplace.clearPhone(user.id);
         setUser(next);
+      },
+      deleteAccount: async () => {
+        if (!user) throw new Error('Autentifică-te din nou.');
+        await marketplace.deleteAccount(user.id);
+        setUser(null);
       },
     }),
     [user, loading, refresh]

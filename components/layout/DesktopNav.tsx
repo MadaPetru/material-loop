@@ -51,9 +51,16 @@ export function DesktopNav() {
       <View style={styles.right}>
         <LanguageSelector />
         {user ? (
-          <Text style={styles.user} numberOfLines={1}>
-            {user.displayName}
-          </Text>
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel={t('nav.profile')}
+            onPress={() => router.push('/profile')}
+            hitSlop={8}
+          >
+            <Text style={styles.user} numberOfLines={1}>
+              {user.displayName}
+            </Text>
+          </Pressable>
         ) : (
           <Pressable style={styles.loginBtn} onPress={() => router.push('/(auth)/login')}>
             <Text style={styles.loginText}>{t('nav.login')}</Text>
@@ -93,9 +100,10 @@ const styles = StyleSheet.create({
   right: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   user: {
     fontFamily: fonts.sansMedium,
-    color: colors.ink,
+    color: colors.brand,
     fontSize: 14,
     maxWidth: 160,
+    textDecorationLine: 'underline',
   },
   loginBtn: {
     backgroundColor: colors.brand,

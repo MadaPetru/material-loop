@@ -42,6 +42,9 @@ cp .env.example .env
 
 4. Reactivează aplicația. Cu `EXPO_PUBLIC_SUPABASE_*` setate, Auth + anunțuri folosesc cloud-ul (nu demo local).
 5. Pentru **verificare telefon (SMS)**: Authentication → Providers → Phone → activează un provider SMS (Twilio / MessageBird etc.). Fără SMS provider, OTP-ul nu ajunge pe telefon real; în **mod demo** folosește codul `123456`.
+6. Pentru **ștergere cont** (hard delete Auth): deploy Edge Function-ul din repo:
+   `npx supabase functions deploy delete-account`
+   (necesită proiect link-uit). Fără el, app-ul face un soft-delete (profil dezactivat + anunțuri ascunse) și te deconectează.
 
 ## Deploy web (Vercel)
 

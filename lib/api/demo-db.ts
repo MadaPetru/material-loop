@@ -251,6 +251,40 @@ export const demoDb = {
     return state.profiles[idx];
   },
 
+  async deleteAccount(userId: string) {
+    const state = await load();
+    if (state.sessionUserId !== userId) throw new Error('Autentifică-te din nou.');
+    const profile = state.profiles.find((p) => p.id === userId);
+    if (!profile) throw new Error('Profil negăsit.');
+
+    const listingIds = new Set(
+      state.listings.filter((l) => l.sellerId === userId).map((l) => l.id),
+    );
+    const conversationIds = new Set(
+      state.conversations
+        .filter(
+          (c) =>
+            c.buyerId === userId ||
+            c.sellerId === userId ||
+            listingIds.has(c.listingId),
+        )
+        .map((c) => c.id),
+    );
+
+    state.messages = state.messages.filter((m) => !conversationIds.has(m.conversationId));
+    state.conversations = state.conversations.filter((c) => !conversationIds.has(c.id));
+    state.favorites = state.favorites.filter(
+      (f) => f.userId !== userId && !listingIds.has(f.listingId),
+    );
+    state.photos = state.photos.filter((p) => !listingIds.has(p.listingId));
+    state.listings = state.listings.filter((l) => l.sellerId !== userId);
+    state.profiles = state.profiles.filter((p) => p.id !== userId);
+    delete state.passwords[profile.email.toLowerCase()];
+    if (state.pendingPhone?.userId === userId) state.pendingPhone = null;
+    state.sessionUserId = null;
+    await save();
+  },
+
   async getProfile(userId: string) {
     const state = await load();
     return state.profiles.find((p) => p.id === userId) ?? null;

@@ -163,6 +163,12 @@ const en: TranslationDict = {
     codeSent: 'Code sent to %{phone}.',
     demoCodeHint: 'Demo mode — use code %{code}.',
     phoneInvalid: 'Enter a valid Romanian mobile number (07…).',
+    deleteAccount: 'Delete account',
+    deleteAccountConfirmTitle: 'Delete your account?',
+    deleteAccountConfirmBody:
+      'Your listings and profile data will be removed. This cannot be undone.',
+    deleteAccountConfirmAction: 'Delete permanently',
+    deletingAccount: 'Deleting…',
   },
   myListings: {
     title: 'My listings',

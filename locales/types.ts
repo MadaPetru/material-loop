@@ -162,6 +162,11 @@ export type TranslationDict = {
     codeSent: string;
     demoCodeHint: string;
     phoneInvalid: string;
+    deleteAccount: string;
+    deleteAccountConfirmTitle: string;
+    deleteAccountConfirmBody: string;
+    deleteAccountConfirmAction: string;
+    deletingAccount: string;
   };
   myListings: {
     title: string;

@@ -33,6 +33,30 @@ function client() {
   return sb;
 }
 
+/** Scrub profile + hide listings when the Edge Function is unavailable. */
+async function softDeleteOwnAccount(sb: ReturnType<typeof client>, userId: string) {
+  const now = new Date().toISOString();
+  const { error: listingError } = await sb
+    .from('listings')
+    .update({ status: 'removed', updated_at: now })
+    .eq('seller_id', userId);
+  if (listingError) return false;
+
+  const { error: profileError } = await sb
+    .from('profiles')
+    .update({
+      display_name: 'Cont șters',
+      email: `deleted-${userId}@deleted.local`,
+      phone: null,
+      phone_verified_at: null,
+      bio: null,
+      avatar_url: null,
+      deactivated_at: now,
+    })
+    .eq('id', userId);
+  return !profileError;
+}
+
 function displayNameFromUser(user: User) {
   const meta = user.user_metadata ?? {};
   return (
@@ -296,6 +320,37 @@ export const supabaseDb = {
       .single();
     if (error) throw new Error(error.message);
     return mapProfile(row as DbProfile);
+  },
+
+  async deleteAccount(userId: string) {
+    const sb = client();
+    const {
+      data: { user },
+      error: userError,
+    } = await sb.auth.getUser();
+    if (userError) throw new Error(userError.message);
+    if (!user || user.id !== userId) throw new Error('Autentifică-te din nou.');
+
+    // Prefer Edge Function (service role) for hard Auth deletion.
+    const { data, error } = await sb.functions.invoke('delete-account', { body: {} });
+    if (!error) {
+      await sb.auth.signOut();
+      return;
+    }
+
+    const softOk = await softDeleteOwnAccount(sb, userId);
+    if (softOk) {
+      await sb.auth.signOut();
+      return;
+    }
+
+    const detail =
+      (data && typeof data === 'object' && 'error' in data && String((data as { error: unknown }).error)) ||
+      error.message;
+    throw new Error(
+      detail ||
+        'Ștergerea contului a eșuat. Asigură-te că funcția delete-account e deploy-ată pe Supabase.',
+    );
   },
 
   async getProfile(userId: string) {

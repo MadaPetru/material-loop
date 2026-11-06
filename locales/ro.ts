@@ -163,6 +163,12 @@ const ro: TranslationDict = {
     codeSent: 'Cod trimis la %{phone}.',
     demoCodeHint: 'Mod demo — folosește codul %{code}.',
     phoneInvalid: 'Introdu un mobil românesc valid (07…).',
+    deleteAccount: 'Șterge contul',
+    deleteAccountConfirmTitle: 'Ștergi contul?',
+    deleteAccountConfirmBody:
+      'Anunțurile și datele de profil vor fi eliminate. Acțiunea este ireversibilă.',
+    deleteAccountConfirmAction: 'Șterge definitiv',
+    deletingAccount: 'Se șterge…',
   },
   myListings: {
     title: 'Anunțurile mele',

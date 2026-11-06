@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -8,13 +9,15 @@ import { formatCityCounty } from '@/data/romania';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocale } from '@/contexts/LocaleContext';
 import { formatRoPhoneDisplay } from '@/lib/phone';
+import { toUserError } from '@/lib/userErrors';
 import { colors, fonts, radii, spacing } from '@/lib/theme';
 import { useResponsive } from '@/lib/useResponsive';
 
 export default function ProfileScreen() {
-  const { user, signOut, isDemo } = useAuth();
+  const { user, signOut, deleteAccount, isDemo } = useAuth();
   const { t } = useLocale();
   const { isDesktop } = useResponsive();
+  const [deleting, setDeleting] = useState(false);
 
   if (!user) {
     return (
@@ -34,6 +37,27 @@ export default function ProfileScreen() {
       </View>
     );
   }
+
+  const confirmDeleteAccount = () => {
+    Alert.alert(t('profile.deleteAccountConfirmTitle'), t('profile.deleteAccountConfirmBody'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('profile.deleteAccountConfirmAction'),
+        style: 'destructive',
+        onPress: async () => {
+          setDeleting(true);
+          try {
+            await deleteAccount();
+            router.replace('/');
+          } catch (e) {
+            Alert.alert(t('common.error'), toUserError(e));
+          } finally {
+            setDeleting(false);
+          }
+        },
+      },
+    ]);
+  };
 
   return (
     <Screen scroll>
@@ -62,7 +86,9 @@ export default function ProfileScreen() {
             {formatRoPhoneDisplay(user.phone)} · {t('profile.phoneVerified')}
           </Text>
         ) : (
-          <Text style={styles.meta}>{t('profile.phone')}: {t('profile.phoneUnverified')}</Text>
+          <Text style={styles.meta}>
+            {t('profile.phone')}: {t('profile.phoneUnverified')}
+          </Text>
         )}
         {isDemo ? <Text style={styles.demo}>{t('profile.demoNote')}</Text> : null}
         <View style={[styles.actions, isDesktop && styles.actionsRow]}>
@@ -93,6 +119,14 @@ export default function ProfileScreen() {
         <Pressable onPress={() => router.push('/legal/terms')}>
           <Text style={styles.legal}>{t('profile.legal')}</Text>
         </Pressable>
+        <View style={styles.dangerZone}>
+          <Button
+            label={deleting ? t('profile.deletingAccount') : t('profile.deleteAccount')}
+            variant="danger"
+            onPress={confirmDeleteAccount}
+            disabled={deleting}
+          />
+        </View>
       </View>
     </Screen>
   );
@@ -130,5 +164,11 @@ const styles = StyleSheet.create({
     color: colors.brand,
     marginTop: spacing.sm,
     fontSize: 13,
+  },
+  dangerZone: {
+    marginTop: spacing.xl,
+    paddingTop: spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
   },
 });
