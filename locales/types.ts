@@ -136,9 +136,14 @@ export type TranslationDict = {
     signOut: string;
     legal: string;
     myListings: string;
-    emptyListingsTitle: string;
-    emptyListingsSub: string;
-    createListing: string;
+  };
+  myListings: {
+    title: string;
+    gateTitle: string;
+    gateSub: string;
+    emptyTitle: string;
+    emptySub: string;
+    create: string;
   };
   auth: {
     loginTitle: string;

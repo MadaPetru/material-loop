@@ -16,7 +16,8 @@ export function DesktopNav() {
     {
       href: '/sell',
       label: t('nav.sell'),
-      match: (p: string) => p.startsWith('/sell') || p.startsWith('/listing/create'),
+      match: (p: string) =>
+        p.startsWith('/sell') || p.startsWith('/listing/create') || p.startsWith('/my-listings'),
     },
     { href: '/favorites', label: t('nav.favorites'), match: (p: string) => p.startsWith('/favorites') },
     { href: '/messages', label: t('nav.messages'), match: (p: string) => p.startsWith('/messages') },

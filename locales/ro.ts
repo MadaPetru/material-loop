@@ -137,9 +137,14 @@ const ro: TranslationDict = {
     signOut: 'Deconectare',
     legal: 'Termeni · Siguranță materiale',
     myListings: 'Anunțurile mele',
-    emptyListingsTitle: 'Nu ai anunțuri active',
-    emptyListingsSub: 'Publică primul material rămas — plătit sau gratuit.',
-    createListing: 'Creează anunț',
+  },
+  myListings: {
+    title: 'Anunțurile mele',
+    gateTitle: 'Anunțurile tale',
+    gateSub: 'Autentifică-te pentru a gestiona materialele publicate.',
+    emptyTitle: 'Nu ai anunțuri încă',
+    emptySub: 'Publică primul material rămas — plătit sau gratuit.',
+    create: 'Creează anunț',
   },
   auth: {
     loginTitle: 'Intră în cont',

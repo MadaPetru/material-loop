@@ -77,6 +77,7 @@ function RootNavigator() {
       <Stack.Screen name="listing/[id]/edit" options={{ title: t('listing.edit') }} />
       <Stack.Screen name="u/[id]" options={{ title: t('nav.profile') }} />
       <Stack.Screen name="profile/edit" options={{ title: t('profile.editProfile') }} />
+      <Stack.Screen name="my-listings" options={{ title: t('myListings.title') }} />
       <Stack.Screen name="legal/terms" options={{ title: 'Terms' }} />
       <Stack.Screen name="legal/safety" options={{ title: 'Safety' }} />
     </Stack>

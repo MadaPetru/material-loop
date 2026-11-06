@@ -137,9 +137,14 @@ const en: TranslationDict = {
     signOut: 'Sign out',
     legal: 'Terms · Material safety',
     myListings: 'My listings',
-    emptyListingsTitle: 'No active listings',
-    emptyListingsSub: 'Post your first leftover material — paid or free.',
-    createListing: 'Create listing',
+  },
+  myListings: {
+    title: 'My listings',
+    gateTitle: 'Your listings',
+    gateSub: 'Sign in to manage the materials you posted.',
+    emptyTitle: 'No listings yet',
+    emptySub: 'Post your first leftover material — paid or free.',
+    create: 'Create listing',
   },
   auth: {
     loginTitle: 'Sign in',

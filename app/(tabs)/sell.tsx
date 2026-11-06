@@ -26,7 +26,7 @@ export default function SellTab() {
         <Button
           label={t('sell.myListings')}
           variant="secondary"
-          onPress={() => router.push('/(tabs)/profile')}
+          onPress={() => router.push('/my-listings')}
         />
       </View>
     </Screen>
