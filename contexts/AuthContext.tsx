@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { AppState, type AppStateStatus } from 'react-native';
 import { marketplace } from '@/lib/api/marketplace';
 import {
   hasAllEntitlements,
@@ -58,9 +59,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (mounted) setLoading(false);
       });
 
+    // Re-fetch profile when app returns to foreground (picks up roles changed in DB/admin).
+    const onAppState = (state: AppStateStatus) => {
+      if (state === 'active') {
+        refresh().catch(() => {
+          /* keep current user */
+        });
+      }
+    };
+    const appSub = AppState.addEventListener('change', onAppState);
+
     if (IS_DEMO) {
       return () => {
         mounted = false;
+        appSub.remove();
       };
     }
 
@@ -68,6 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!sb) {
       return () => {
         mounted = false;
+        appSub.remove();
       };
     }
 
@@ -87,6 +100,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       mounted = false;
+      appSub.remove();
       sub.subscription.unsubscribe();
     };
   }, [refresh]);

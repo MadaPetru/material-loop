@@ -82,12 +82,7 @@ async function load() {
         const parsed = JSON.parse(raw) as Partial<DemoState>;
         // Merge so older local demos still keep seed passwords / data shape.
         const profiles = (parsed.profiles?.length ? parsed.profiles : defaults.profiles).map(
-          (p) => {
-            const legacy = p as Profile & { role?: UserRole };
-            const roles = normalizeRoles(legacy.roles ?? legacy.role ?? null);
-            const { role: _legacyRole, ...rest } = legacy;
-            return { ...rest, roles };
-          },
+          (p) => ({ ...p, roles: normalizeRoles(p.roles) }),
         );
         memory = {
           profiles,

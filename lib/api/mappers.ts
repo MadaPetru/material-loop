@@ -1,7 +1,7 @@
 import { getCategory, getSubcategory } from '@/data/categories';
 import { getCity, getCounty } from '@/data/romania';
 import { haversineKm } from '@/lib/geo';
-import { normalizeRoles } from '@/lib/entitlements';
+import { parseRolesInput } from '@/lib/entitlements';
 import type {
   Listing,
   ListingPhoto,
@@ -10,7 +10,6 @@ import type {
   MeasurementUnit,
   ProductCondition,
   Profile,
-  UserRole,
 } from '@/lib/types';
 
 export type DbProfile = {
@@ -19,7 +18,7 @@ export type DbProfile = {
   display_name: string;
   avatar_url: string | null;
   account_type: Profile['accountType'];
-  roles?: string[] | null;
+  roles: string[] | null;
   city_id: string | null;
   phone: string | null;
   phone_verified_at: string | null;
@@ -95,14 +94,13 @@ export function toEwkt(lat: number, lng: number) {
 export function mapProfile(row: DbProfile): Profile {
   const city = row.city_id ? getCity(row.city_id) : undefined;
   const point = parseGeoPoint(row.location);
-  const roles = normalizeRoles((row.roles as UserRole[] | null | undefined) ?? null);
   return {
     id: row.id,
     email: row.email,
     displayName: row.display_name,
     avatarUrl: row.avatar_url,
     accountType: row.account_type,
-    roles,
+    roles: parseRolesInput(row.roles),
     cityId: row.city_id,
     phone: row.phone,
     phoneVerifiedAt: row.phone_verified_at ?? null,

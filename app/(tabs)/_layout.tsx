@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Tabs, router } from 'expo-router';
 import { Platform, View, StyleSheet } from 'react-native';
@@ -18,12 +19,20 @@ function TabIcon(props: {
 export default function TabLayout() {
   const { isDesktop, isTablet } = useResponsive();
   const { t, locale } = useLocale();
-  const { can } = useAuth();
+  const { can, refresh, user } = useAuth();
   const showAdmin = can('admin.panel');
   const hideTabBar = isDesktop;
 
+  // Reload profile (roles → entitlements) so Admin tab appears after DB/admin changes.
+  useEffect(() => {
+    if (!user) return;
+    refresh().catch(() => {
+      /* keep current session */
+    });
+  }, [user?.id, refresh]);
+
   return (
-    <View style={styles.root} key={locale}>
+    <View style={styles.root}>
       {isDesktop ? <DesktopNav /> : null}
       {!isDesktop ? (
         <View style={styles.mobileLang}>
@@ -31,6 +40,8 @@ export default function TabLayout() {
         </View>
       ) : null}
       <Tabs
+        // Remount when admin entitlement appears, otherwise href:null stays stuck.
+        key={`${locale}-${showAdmin ? 'with-admin' : 'no-admin'}`}
         screenOptions={{
           tabBarActiveTintColor: colors.brand,
           tabBarInactiveTintColor: colors.inkFaint,

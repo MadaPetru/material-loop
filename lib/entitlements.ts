@@ -60,11 +60,47 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleDefinition> = {
   },
 };
 
+const KNOWN_ROLES = new Set<UserRole>(['user', 'admin']);
+
 /** Normalize one or many roles; always returns at least `user` when empty. */
 export function normalizeRoles(input?: UserRole | UserRole[] | null): UserRole[] {
   const list = Array.isArray(input) ? input : input ? [input] : [];
-  const unique = Array.from(new Set(list.filter(Boolean))) as UserRole[];
+  const unique = Array.from(
+    new Set(list.filter((r): r is UserRole => Boolean(r) && KNOWN_ROLES.has(r as UserRole))),
+  );
   return unique.length ? unique : ['user'];
+}
+
+/**
+ * Parse roles from DB / API (array, `{user,admin}`, JSON string, comma-separated).
+ */
+export function parseRolesInput(raw: unknown): UserRole[] {
+  if (raw == null) return ['user'];
+  if (Array.isArray(raw)) return normalizeRoles(raw as UserRole[]);
+  if (typeof raw !== 'string') return ['user'];
+
+  const trimmed = raw.trim();
+  if (!trimmed) return ['user'];
+
+  // Postgres text[] literal: {user,admin}
+  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+    return normalizeRoles(
+      trimmed
+        .slice(1, -1)
+        .split(',')
+        .map((s) => s.trim().replace(/^"|"$/g, ''))
+        .filter(Boolean) as UserRole[],
+    );
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed) as unknown;
+    if (Array.isArray(parsed)) return normalizeRoles(parsed as UserRole[]);
+  } catch {
+    /* not JSON */
+  }
+
+  return normalizeRoles(trimmed.split(',').map((s) => s.trim()).filter(Boolean) as UserRole[]);
 }
 
 /** Union of entitlements from all assigned roles. */

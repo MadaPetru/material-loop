@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -16,12 +16,20 @@ import { colors, fonts, radii, spacing } from '@/lib/theme';
 import { useResponsive } from '@/lib/useResponsive';
 
 export default function ProfileScreen() {
-  const { user, signOut, deleteAccount, isDemo, can } = useAuth();
+  const { user, signOut, deleteAccount, isDemo, can, refresh } = useAuth();
   const { t } = useLocale();
   const { isDesktop } = useResponsive();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      refresh().catch(() => {
+        /* keep session */
+      });
+    }, [refresh]),
+  );
 
   if (!user) {
     return (
@@ -69,6 +77,16 @@ export default function ProfileScreen() {
           {user.accountType === 'business' ? t('profile.business') : t('profile.individual')}
           {can('admin.panel') ? ` · ${t('admin.roleAdmin')}` : ''}
         </Text>
+        <Text style={styles.meta}>
+          {t('admin.usersSection')}: {user.roles.join(', ')}
+        </Text>
+        {can('admin.panel') ? (
+          <Button
+            label={t('nav.admin')}
+            onPress={() => router.push('/admin')}
+            style={{ marginTop: spacing.sm }}
+          />
+        ) : null}
         {user.sellerRating != null ? (
           <Text style={styles.meta}>
             {t('profile.ratingLine', {
