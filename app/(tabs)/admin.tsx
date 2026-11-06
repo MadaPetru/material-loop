@@ -46,14 +46,13 @@ export default function AdminScreen() {
   const { contentPad, isDesktop } = useResponsive();
 
   const allowed = can('admin.panel') || can('marketing.panel');
-  const canReadUsers = can('admin.users.read');
+  const canReadUsers = can('admin.users.read') || can('admin.panel');
   const canManageUsers = can('admin.users.manage');
-  const canEmailUsers = can('admin.users.email') || can('marketing.email');
   const canSeeAnalytics = can('admin.analytics');
-  const canManageRoles = can('admin.roles.manage');
-  const canMarketing = can('marketing.panel');
-  const canMarketingAds = can('marketing.ads');
-  const canMarketingEmail = can('marketing.email');
+  const canManageRoles = can('admin.roles.manage') || can('admin.panel');
+  const canMarketing = can('marketing.panel') || can('admin.panel');
+  const canMarketingAds = can('marketing.ads') || can('admin.panel');
+  const canOutreach = can('marketing.email') || can('admin.users.email') || can('admin.panel');
 
   const sections = useMemo(() => {
     const list: AdminSection[] = [];
@@ -81,6 +80,7 @@ export default function AdminScreen() {
   const [mailBody, setMailBody] = useState('');
   const [selectedMailIds, setSelectedMailIds] = useState<Set<string>>(new Set());
   const [recipientQuery, setRecipientQuery] = useState('');
+  const [pickDraftOpen, setPickDraftOpen] = useState(false);
 
   const [roleForm, setRoleForm] = useState<{
     id: string;
@@ -110,12 +110,23 @@ export default function AdminScreen() {
       const catalog = await marketplace.loadRoleCatalog();
       setRoles(catalog);
       await refresh();
-      const list = canReadUsers ? await marketplace.adminListUsers() : [];
-      setUsers(list);
+      if (canReadUsers || canOutreach) {
+        try {
+          setUsers(await marketplace.adminListUsers());
+        } catch {
+          setUsers([]);
+        }
+      } else {
+        setUsers([]);
+      }
       const stats = canSeeAnalytics ? await marketplace.adminGetAnalytics() : null;
       setAnalytics(stats);
       if (canMarketing) {
-        setAds(await marketplace.listMarketingAds());
+        try {
+          setAds(await marketplace.listMarketingAds());
+        } catch {
+          setAds([]);
+        }
       } else {
         setAds([]);
       }
@@ -124,7 +135,7 @@ export default function AdminScreen() {
     } finally {
       setLoading(false);
     }
-  }, [allowed, canReadUsers, canSeeAnalytics, canMarketing, refresh]);
+  }, [allowed, canReadUsers, canOutreach, canSeeAnalytics, canMarketing, refresh]);
 
   useFocusEffect(
     useCallback(() => {
@@ -158,24 +169,6 @@ export default function AdminScreen() {
     );
   }, [users, recipientQuery]);
 
-  const openMailFromTemplate = (template: MarketingAd, targets?: Profile[]) => {
-    const selected = targets?.length
-      ? targets
-      : users.filter((u) => selectedMailIds.has(u.id) && u.email);
-    if (!selected.length) {
-      setError(t('admin.needRecipients'));
-      return;
-    }
-    setError(null);
-    setMailTarget(selected);
-    setMailSubject(template.title);
-    setMailBody(
-      selected.length === 1
-        ? template.body.split('%{name}').join(selected[0].displayName)
-        : template.body.split('%{name}').join(''),
-    );
-  };
-
   if (!user) {
     return (
       <View style={styles.center}>
@@ -202,14 +195,47 @@ export default function AdminScreen() {
     );
   }
 
-  const openMail = (targets: Profile[]) => {
+  const selectedTargets = () =>
+    users.filter((u) => selectedMailIds.has(u.id) && u.email);
+
+  const openMail = (targets: Profile[], draft?: MarketingAd | null) => {
+    setPickDraftOpen(false);
     setMailTarget(targets);
+    if (draft) {
+      setMailSubject(draft.title);
+      setMailBody(
+        targets.length === 1
+          ? draft.body.split('%{name}').join(targets[0].displayName)
+          : draft.body.split('%{name}').join(''),
+      );
+      return;
+    }
     setMailSubject(t('admin.emailSubjectDefault'));
     setMailBody(
       targets.length === 1
         ? t('admin.emailBodyDefault', { name: targets[0].displayName })
         : t('admin.emailBodyDefaultMulti'),
     );
+  };
+
+  const openMailFromTemplate = (template: MarketingAd, targets?: Profile[]) => {
+    const selected = targets?.length ? targets : selectedTargets();
+    if (!selected.length) {
+      setError(t('admin.needRecipients'));
+      return;
+    }
+    setError(null);
+    openMail(selected, template);
+  };
+
+  const startComposeToSelection = () => {
+    const targets = selectedTargets();
+    if (!targets.length) {
+      setError(t('admin.needRecipients'));
+      return;
+    }
+    setError(null);
+    setPickDraftOpen(true);
   };
 
   const sendMail = async () => {
@@ -415,24 +441,10 @@ export default function AdminScreen() {
 
       {activeSection === 'marketing' ? (
         <View style={{ gap: spacing.md }}>
-          <Text style={styles.section}>{t('admin.marketingAdsSection')}</Text>
-          <Text style={styles.hint}>{t('admin.marketingTemplatesHint')}</Text>
-          {canMarketingAds ? (
-            <Button
-              label={t('admin.createAd')}
-              onPress={() =>
-                setAdForm({
-                  title: t('admin.emailSubjectDefault'),
-                  body: t('admin.emailBodyDefault', { name: '%{name}' }),
-                  active: true,
-                })
-              }
-            />
-          ) : null}
-          {canMarketingEmail && canReadUsers ? (
+          <Text style={styles.section}>{t('admin.marketingEmailSection')}</Text>
+          <Text style={styles.hint}>{t('admin.marketingEmailHint')}</Text>
+          {canOutreach && canReadUsers ? (
             <>
-              <Text style={styles.section}>{t('admin.marketingEmailSection')}</Text>
-              <Text style={styles.hint}>{t('admin.marketingEmailHint')}</Text>
               <TextInput
                 value={recipientQuery}
                 onChangeText={setRecipientQuery}
@@ -442,6 +454,12 @@ export default function AdminScreen() {
                 autoCorrect={false}
                 style={styles.search}
               />
+              <Text style={styles.meta}>
+                {t('admin.recipientsSelected', {
+                  selected: String(selectedMailIds.size),
+                  shown: String(filteredRecipients.length),
+                })}
+              </Text>
               <View style={styles.cardActions}>
                 <Button
                   label={t('admin.selectMatching', { count: String(filteredRecipients.length) })}
@@ -467,24 +485,67 @@ export default function AdminScreen() {
                 />
                 <Button
                   label={t('admin.composeSelected', { count: String(selectedMailIds.size) })}
-                  variant="secondary"
                   compact
                   disabled={!selectedMailIds.size}
-                  onPress={() => {
-                    const targets = users.filter((u) => selectedMailIds.has(u.id) && u.email);
-                    if (targets.length) openMail(targets);
-                  }}
+                  onPress={startComposeToSelection}
                   style={styles.action}
                 />
               </View>
-              <Text style={styles.meta}>
-                {t('admin.recipientsSelected', {
-                  selected: String(selectedMailIds.size),
-                  shown: String(filteredRecipients.length),
-                })}
-              </Text>
+              <View style={{ gap: spacing.sm, maxHeight: 220 }}>
+                <ScrollView nestedScrollEnabled>
+                  {!filteredRecipients.length ? (
+                    <Text style={styles.empty}>{t('admin.noRecipientsMatch')}</Text>
+                  ) : (
+                    filteredRecipients.map((profile) => {
+                      const on = selectedMailIds.has(profile.id);
+                      return (
+                        <Pressable
+                          key={profile.id}
+                          style={[styles.recipientRow, on && styles.recipientRowOn]}
+                          onPress={() =>
+                            setSelectedMailIds((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(profile.id)) next.delete(profile.id);
+                              else next.add(profile.id);
+                              return next;
+                            })
+                          }
+                        >
+                          <View style={[styles.check, on && styles.checkOn]}>
+                            <Text style={styles.checkText}>{on ? '✓' : ''}</Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.name}>{profile.displayName}</Text>
+                            <Text style={styles.meta}>{profile.email}</Text>
+                          </View>
+                        </Pressable>
+                      );
+                    })
+                  )}
+                </ScrollView>
+              </View>
             </>
-          ) : null}
+          ) : (
+            <Text style={styles.hint}>{t('admin.outreachNeedsUsersRead')}</Text>
+          )}
+
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.section}>{t('admin.marketingAdsSection')}</Text>
+            {canMarketingAds ? (
+              <Button
+                label={t('admin.createAd')}
+                compact
+                onPress={() =>
+                  setAdForm({
+                    title: t('admin.emailSubjectDefault'),
+                    body: t('admin.emailBodyDefault', { name: '%{name}' }),
+                    active: true,
+                  })
+                }
+              />
+            ) : null}
+          </View>
+          <Text style={styles.hint}>{t('admin.marketingTemplatesHint')}</Text>
         </View>
       ) : null}
 
@@ -522,42 +583,7 @@ export default function AdminScreen() {
             <View />
           )
         }
-        ListFooterComponent={
-          activeSection === 'marketing' && canMarketingEmail && canReadUsers ? (
-            <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
-              <Text style={styles.section}>{t('admin.pickRecipients')}</Text>
-              {!filteredRecipients.length ? (
-                <Text style={styles.empty}>{t('admin.noRecipientsMatch')}</Text>
-              ) : (
-                filteredRecipients.map((profile) => {
-                  const on = selectedMailIds.has(profile.id);
-                  return (
-                    <Pressable
-                      key={profile.id}
-                      style={[styles.card, styles.checkboxRow]}
-                      onPress={() =>
-                        setSelectedMailIds((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(profile.id)) next.delete(profile.id);
-                          else next.add(profile.id);
-                          return next;
-                        })
-                      }
-                    >
-                      <View style={[styles.check, on && styles.checkOn]}>
-                        <Text style={styles.checkText}>{on ? '✓' : ''}</Text>
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.name}>{profile.displayName}</Text>
-                        <Text style={styles.meta}>{profile.email}</Text>
-                      </View>
-                    </Pressable>
-                  );
-                })
-              )}
-            </View>
-          ) : undefined
-        }
+        ListFooterComponent={undefined}
         renderItem={({ item }) => {
           if (activeSection === 'users') {
             const profile = item as Profile;
@@ -585,29 +611,9 @@ export default function AdminScreen() {
                       {itemEntitlements.join(' · ')}
                     </Text>
                   </View>
-                  {canMarketingEmail ? (
-                    <Pressable
-                      onPress={() => {
-                        setSelectedMailIds((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(profile.id)) next.delete(profile.id);
-                          else next.add(profile.id);
-                          return next;
-                        });
-                      }}
-                      style={[
-                        styles.check,
-                        selectedMailIds.has(profile.id) && styles.checkOn,
-                      ]}
-                    >
-                      <Text style={styles.checkText}>
-                        {selectedMailIds.has(profile.id) ? '✓' : ''}
-                      </Text>
-                    </Pressable>
-                  ) : null}
                 </View>
                 <View style={styles.cardActions}>
-                  {canEmailUsers ? (
+                  {canOutreach ? (
                     <Button
                       label={t('admin.emailUser')}
                       variant="secondary"
@@ -707,7 +713,7 @@ export default function AdminScreen() {
                 {ad.body || '—'}
               </Text>
               <View style={styles.cardActions}>
-                {canMarketingEmail ? (
+                {canOutreach ? (
                   <Button
                     label={t('admin.useTemplate')}
                     compact
@@ -795,6 +801,48 @@ export default function AdminScreen() {
               <Button
                 label={busyId ? t('common.loading') : t('common.save')}
                 onPress={() => void saveUserRoles()}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={pickDraftOpen} transparent animationType="fade">
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalCard, { maxHeight: '85%' }]}>
+            <Text style={styles.modalTitle}>{t('admin.pickDraftTitle')}</Text>
+            <Text style={styles.hint}>
+              {t('admin.pickDraftHint', { count: String(selectedMailIds.size) })}
+            </Text>
+            <ScrollView style={{ maxHeight: 360 }}>
+              <Pressable
+                style={styles.card}
+                onPress={() => openMail(selectedTargets(), null)}
+              >
+                <Text style={styles.name}>{t('admin.composeBlank')}</Text>
+                <Text style={styles.meta}>{t('admin.composeBlankHint')}</Text>
+              </Pressable>
+              {ads.filter((a) => a.active).map((draft) => (
+                <Pressable
+                  key={draft.id}
+                  style={styles.card}
+                  onPress={() => openMail(selectedTargets(), draft)}
+                >
+                  <Text style={styles.name}>{draft.title}</Text>
+                  <Text style={styles.entitlements} numberOfLines={3}>
+                    {draft.body || '—'}
+                  </Text>
+                </Pressable>
+              ))}
+              {!ads.filter((a) => a.active).length ? (
+                <Text style={styles.empty}>{t('admin.noAds')}</Text>
+              ) : null}
+            </ScrollView>
+            <View style={styles.modalActions}>
+              <Button
+                label={t('common.cancel')}
+                variant="ghost"
+                onPress={() => setPickDraftOpen(false)}
               />
             </View>
           </View>
@@ -1063,6 +1111,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.md,
     paddingVertical: spacing.sm,
+  },
+  recipientRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.bgElevated,
+    marginBottom: spacing.xs,
+  },
+  recipientRowOn: {
+    borderColor: colors.brand,
+    backgroundColor: colors.brandSoft,
   },
   groupLabel: {
     fontFamily: fonts.sansBold,

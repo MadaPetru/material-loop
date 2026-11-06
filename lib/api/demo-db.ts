@@ -229,7 +229,10 @@ export const demoDb = {
   },
 
   async listMarketingAds(): Promise<MarketingAd[]> {
-    await this.requireEntitlement('marketing.panel');
+    const me = await this.getSession();
+    if (!hasEntitlement(me, 'marketing.panel') && !hasEntitlement(me, 'admin.panel')) {
+      throw new Error('Acces interzis. Îți lipsește dreptul necesar.');
+    }
     const state = await load();
     return [...state.ads].sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
@@ -242,9 +245,13 @@ export const demoDb = {
     body: string;
     active: boolean;
   }): Promise<MarketingAd> {
-    const me = await this.requireEntitlement('marketing.ads');
+    const me = await this.getSession();
+    if (!hasEntitlement(me, 'marketing.ads') && !hasEntitlement(me, 'admin.panel')) {
+      throw new Error('Acces interzis. Îți lipsește dreptul necesar.');
+    }
+    if (!me) throw new Error('Autentifică-te din nou.');
     const title = input.title.trim();
-    if (!title) throw new Error('Completează titlul anunțului.');
+    if (!title) throw new Error('Completează subiectul schiței.');
     const state = await load();
     const now = new Date().toISOString();
     if (input.id) {
@@ -275,7 +282,10 @@ export const demoDb = {
   },
 
   async deleteMarketingAd(adId: string) {
-    await this.requireEntitlement('marketing.ads');
+    const me = await this.getSession();
+    if (!hasEntitlement(me, 'marketing.ads') && !hasEntitlement(me, 'admin.panel')) {
+      throw new Error('Acces interzis. Îți lipsește dreptul necesar.');
+    }
     const state = await load();
     state.ads = state.ads.filter((a) => a.id !== adId);
     await save();

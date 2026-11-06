@@ -415,7 +415,10 @@ export const supabaseDb = {
   },
 
   async listMarketingAds(): Promise<MarketingAd[]> {
-    await this.requireEntitlement('marketing.panel');
+    const me = await this.getSession();
+    if (!hasEntitlement(me, 'marketing.panel') && !hasEntitlement(me, 'admin.panel')) {
+      throw new Error('Acces interzis. Îți lipsește dreptul necesar.');
+    }
     const { data, error } = await client()
       .from('marketing_ads')
       .select('*')
@@ -446,9 +449,13 @@ export const supabaseDb = {
     body: string;
     active: boolean;
   }): Promise<MarketingAd> {
-    const me = await this.requireEntitlement('marketing.ads');
+    const me = await this.getSession();
+    if (!hasEntitlement(me, 'marketing.ads') && !hasEntitlement(me, 'admin.panel')) {
+      throw new Error('Acces interzis. Îți lipsește dreptul necesar.');
+    }
+    if (!me) throw new Error('Autentifică-te din nou.');
     const title = input.title.trim();
-    if (!title) throw new Error('Completează titlul anunțului.');
+    if (!title) throw new Error('Completează subiectul schiței.');
     const now = new Date().toISOString();
     const sb = client();
     const query = input.id
@@ -498,7 +505,10 @@ export const supabaseDb = {
   },
 
   async deleteMarketingAd(adId: string) {
-    await this.requireEntitlement('marketing.ads');
+    const me = await this.getSession();
+    if (!hasEntitlement(me, 'marketing.ads') && !hasEntitlement(me, 'admin.panel')) {
+      throw new Error('Acces interzis. Îți lipsește dreptul necesar.');
+    }
     const { error } = await client().from('marketing_ads').delete().eq('id', adId);
     if (error) throw new Error(error.message);
   },
