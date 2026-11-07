@@ -8,6 +8,7 @@ import { createId } from '@/lib/id';
 import { LISTING_EXPIRY_DAYS } from '@/lib/config';
 import { normalizeRoPhone } from '@/lib/phone';
 import {
+  assertAnyEntitlement,
   assertEntitlement,
   DEFAULT_ROLE_DEFINITIONS,
   filterKnownEntitlements,
@@ -190,7 +191,7 @@ export const demoDb = {
     description?: string;
     entitlements: string[];
   }) {
-    await this.requireEntitlement('admin.roles.manage');
+    await this.requireEntitlement('admin.roles.write');
     const id = input.id.trim().toLowerCase();
     if (!isValidRoleSlug(id)) {
       throw new Error('ID rol invalid. Folosește litere mici, cifre, _ sau -.');
@@ -215,7 +216,7 @@ export const demoDb = {
   },
 
   async deleteRole(roleId: string) {
-    await this.requireEntitlement('admin.roles.manage');
+    await this.requireEntitlement('admin.roles.delete');
     const state = await load();
     const role = state.roles.find((r) => r.id === roleId);
     if (!role) throw new Error('Rol negăsit.');
@@ -231,9 +232,7 @@ export const demoDb = {
 
   async listMarketingAds(): Promise<MarketingAd[]> {
     const me = await this.getSession();
-    if (!hasEntitlement(me, 'marketing.panel') && !hasEntitlement(me, 'admin.panel')) {
-      throw new Error('Acces interzis. Îți lipsește dreptul necesar.');
-    }
+    assertAnyEntitlement(me, ['marketing.panel', 'marketing.ads.read']);
     const state = await load();
     return [...state.ads].sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
@@ -247,9 +246,7 @@ export const demoDb = {
     active: boolean;
   }): Promise<MarketingAd> {
     const me = await this.getSession();
-    if (!hasEntitlement(me, 'marketing.ads') && !hasEntitlement(me, 'admin.panel')) {
-      throw new Error('Acces interzis. Îți lipsește dreptul necesar.');
-    }
+    assertEntitlement(me, 'marketing.ads.write');
     if (!me) throw new Error('Autentifică-te din nou.');
     const title = input.title.trim();
     if (!title) throw new Error('Completează subiectul schiței.');
@@ -284,9 +281,7 @@ export const demoDb = {
 
   async deleteMarketingAd(adId: string) {
     const me = await this.getSession();
-    if (!hasEntitlement(me, 'marketing.ads') && !hasEntitlement(me, 'admin.panel')) {
-      throw new Error('Acces interzis. Îți lipsește dreptul necesar.');
-    }
+    assertEntitlement(me, 'marketing.ads.delete');
     const state = await load();
     state.ads = state.ads.filter((a) => a.id !== adId);
     await save();
@@ -348,6 +343,9 @@ export const demoDb = {
 
   async updateProfile(userId: string, patch: Partial<Profile>) {
     const state = await load();
+    const me = state.profiles.find((p) => p.id === state.sessionUserId) ?? null;
+    if (me?.id !== userId) throw new Error('Autentifică-te din nou.');
+    assertEntitlement(me, 'profile.edit');
     const idx = state.profiles.findIndex((p) => p.id === userId);
     if (idx < 0) throw new Error('Profil negăsit.');
     // Phone / roles / deactivation are managed through dedicated flows.
@@ -382,8 +380,13 @@ export const demoDb = {
     targetUserId: string,
     patch: { roles?: UserRole[]; deactivated?: boolean },
   ) {
-    const actor = await this.requireEntitlement('admin.users.manage');
     const state = await load();
+    const actor = state.profiles.find((p) => p.id === state.sessionUserId) ?? null;
+    if (patch.roles !== undefined) assertEntitlement(actor, 'admin.users.roles');
+    if (patch.deactivated !== undefined) assertEntitlement(actor, 'admin.users.deactivate');
+    if (patch.roles === undefined && patch.deactivated === undefined) {
+      assertAnyEntitlement(actor, ['admin.users.roles', 'admin.users.deactivate']);
+    }
     const idx = state.profiles.findIndex((p) => p.id === targetUserId);
     if (idx < 0) throw new Error('Utilizator negăsit.');
     const next = { ...state.profiles[idx] };
@@ -391,7 +394,7 @@ export const demoDb = {
     if (patch.deactivated === true) next.deactivatedAt = new Date().toISOString();
     if (patch.deactivated === false) next.deactivatedAt = null;
 
-    if (actor.id === targetUserId) {
+    if (actor!.id === targetUserId) {
       if (!hasEntitlement(next, 'admin.panel')) {
         throw new Error('Nu îți poți elimina propriul drept de administrator.');
       }
@@ -425,6 +428,9 @@ export const demoDb = {
     const phone = normalizeRoPhone(phoneInput);
     if (!phone) throw new Error('Număr invalid. Folosește un mobil românesc (07…).');
     const state = await load();
+    const me = state.profiles.find((p) => p.id === state.sessionUserId) ?? null;
+    if (me?.id !== userId) throw new Error('Autentifică-te din nou.');
+    assertEntitlement(me, 'profile.phone');
     const profile = state.profiles.find((p) => p.id === userId);
     if (!profile) throw new Error('Profil negăsit.');
     if (state.sessionUserId !== userId) throw new Error('Autentifică-te din nou.');
@@ -444,9 +450,11 @@ export const demoDb = {
     const code = token.trim();
     if (!/^\d{6}$/.test(code)) throw new Error('Codul trebuie să aibă 6 cifre.');
     const state = await load();
+    const me = state.profiles.find((p) => p.id === state.sessionUserId) ?? null;
+    if (me?.id !== userId) throw new Error('Autentifică-te din nou.');
+    assertEntitlement(me, 'profile.phone');
     const idx = state.profiles.findIndex((p) => p.id === userId);
     if (idx < 0) throw new Error('Profil negăsit.');
-    if (state.sessionUserId !== userId) throw new Error('Autentifică-te din nou.');
     const pending = state.pendingPhone;
     if (!pending || pending.userId !== userId || pending.phone !== phone) {
       throw new Error('Trimite mai întâi codul de verificare.');
@@ -471,6 +479,9 @@ export const demoDb = {
 
   async clearPhone(userId: string) {
     const state = await load();
+    const me = state.profiles.find((p) => p.id === state.sessionUserId) ?? null;
+    if (me?.id !== userId) throw new Error('Autentifică-te din nou.');
+    assertEntitlement(me, 'profile.phone');
     const idx = state.profiles.findIndex((p) => p.id === userId);
     if (idx < 0) throw new Error('Profil negăsit.');
     state.profiles[idx] = {
@@ -485,9 +496,10 @@ export const demoDb = {
 
   async deleteAccount(userId: string) {
     const state = await load();
-    if (state.sessionUserId !== userId) throw new Error('Autentifică-te din nou.');
-    const profile = state.profiles.find((p) => p.id === userId);
-    if (!profile) throw new Error('Profil negăsit.');
+    const me = state.profiles.find((p) => p.id === state.sessionUserId) ?? null;
+    if (me?.id !== userId) throw new Error('Autentifică-te din nou.');
+    assertEntitlement(me, 'account.delete');
+    const profile = me;
 
     const listingIds = new Set(
       state.listings.filter((l) => l.sellerId === userId).map((l) => l.id),
@@ -602,6 +614,8 @@ export const demoDb = {
 
   async listingsForSeller(sellerId: string) {
     const state = await load();
+    const me = state.profiles.find((p) => p.id === state.sessionUserId) ?? null;
+    if (me?.id === sellerId) assertEntitlement(me, 'listings.read_own');
     return state.listings
       .filter((l) => l.sellerId === sellerId && l.status !== 'removed')
       .map((l) => enrich(l, state));
@@ -609,6 +623,9 @@ export const demoDb = {
 
   async createListing(sellerId: string, draft: ListingDraft) {
     const state = await load();
+    const me = state.profiles.find((p) => p.id === state.sessionUserId) ?? null;
+    if (me?.id !== sellerId) throw new Error('Autentifică-te din nou.');
+    assertEntitlement(me, 'listings.create');
     const now = new Date().toISOString();
     const city = getCity(draft.cityId);
     const approx = approximateCoords(draft.lat || city?.lat || 45.9, draft.lng || city?.lng || 24.9);
@@ -657,11 +674,23 @@ export const demoDb = {
 
   async updateListing(listingId: string, sellerId: string, patch: Partial<ListingDraft>) {
     const state = await load();
+    const me = state.profiles.find((p) => p.id === state.sessionUserId) ?? null;
+    if (me?.id !== sellerId) throw new Error('Autentifică-te din nou.');
+    const { photoUrls, ...listingPatch } = patch;
+    const statusOnly =
+      Object.keys(listingPatch).length === 1 && listingPatch.status !== undefined && !photoUrls;
+    if (statusOnly) {
+      assertEntitlement(
+        me,
+        listingPatch.status === 'removed' ? 'listings.delete_own' : 'listings.status_own',
+      );
+    } else {
+      assertEntitlement(me, 'listings.edit_own');
+    }
     const idx = state.listings.findIndex((l) => l.id === listingId && l.sellerId === sellerId);
     if (idx < 0) throw new Error('Anunțul nu a fost găsit.');
     const current = state.listings[idx];
     const now = new Date().toISOString();
-    const { photoUrls, ...listingPatch } = patch;
     const nextStatus = listingPatch.status ?? current.status;
     state.listings[idx] = {
       ...current,
@@ -692,11 +721,14 @@ export const demoDb = {
   },
 
   async deleteListing(listingId: string, sellerId: string) {
-    return this.setListingStatus(listingId, sellerId, 'removed');
+    return this.updateListing(listingId, sellerId, { status: 'removed' } as Partial<ListingDraft>);
   },
 
   async getFavorites(userId: string) {
     const state = await load();
+    const me = state.profiles.find((p) => p.id === state.sessionUserId) ?? null;
+    if (me?.id !== userId) throw new Error('Autentifică-te din nou.');
+    assertEntitlement(me, 'favorites.read');
     const ids = state.favorites.filter((f) => f.userId === userId).map((f) => f.listingId);
     return state.listings
       .filter((l) => ids.includes(l.id) && l.status !== 'removed')
@@ -710,6 +742,9 @@ export const demoDb = {
 
   async toggleFavorite(userId: string, listingId: string) {
     const state = await load();
+    const me = state.profiles.find((p) => p.id === state.sessionUserId) ?? null;
+    if (me?.id !== userId) throw new Error('Autentifică-te din nou.');
+    assertEntitlement(me, 'favorites.write');
     const existing = state.favorites.findIndex(
       (f) => f.userId === userId && f.listingId === listingId
     );
@@ -730,6 +765,9 @@ export const demoDb = {
 
   async listConversations(userId: string): Promise<ConversationWithMeta[]> {
     const state = await load();
+    const me = state.profiles.find((p) => p.id === state.sessionUserId) ?? null;
+    if (me?.id !== userId) throw new Error('Autentifică-te din nou.');
+    assertEntitlement(me, 'messages.read');
     const mine = state.conversations
       .filter((c) => c.buyerId === userId || c.sellerId === userId)
       .sort((a, b) => b.lastMessageAt.localeCompare(a.lastMessageAt));
@@ -770,6 +808,9 @@ export const demoDb = {
 
   async getMessages(conversationId: string, userId: string) {
     const state = await load();
+    const me = state.profiles.find((p) => p.id === state.sessionUserId) ?? null;
+    if (me?.id !== userId) throw new Error('Autentifică-te din nou.');
+    assertEntitlement(me, 'messages.read');
     const c = state.conversations.find((x) => x.id === conversationId);
     if (!c || (c.buyerId !== userId && c.sellerId !== userId)) {
       throw new Error('Conversația nu a fost găsită.');
@@ -781,6 +822,9 @@ export const demoDb = {
 
   async sendMessage(conversationId: string, senderId: string, body: string) {
     const state = await load();
+    const me = state.profiles.find((p) => p.id === state.sessionUserId) ?? null;
+    if (me?.id !== senderId) throw new Error('Autentifică-te din nou.');
+    assertEntitlement(me, 'messages.send');
     const text = body.trim();
     if (!text) throw new Error('Mesajul nu poate fi gol.');
     const c = state.conversations.find((x) => x.id === conversationId);
@@ -808,6 +852,9 @@ export const demoDb = {
     initialMessage?: string;
   }) {
     const state = await load();
+    const me = state.profiles.find((p) => p.id === state.sessionUserId) ?? null;
+    if (me?.id !== params.buyerId) throw new Error('Autentifică-te din nou.');
+    assertEntitlement(me, 'messages.start');
     if (params.buyerId === params.sellerId) {
       throw new Error('Nu poți contacta propriul anunț.');
     }

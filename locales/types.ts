@@ -282,6 +282,9 @@ export type TranslationDict = {
     roleDescriptionPlaceholder: string;
     entitlementsSection: string;
     entGroupApp: string;
+    entGroupListings: string;
+    entGroupEngagement: string;
+    entGroupProfile: string;
     entGroupAdmin: string;
     entGroupMarketing: string;
     createAd: string;

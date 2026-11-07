@@ -7,6 +7,7 @@ import { createSessionFromUrl, getOAuthRedirectTo, oauthErrorMessage } from '@/l
 import { approximateCoords, daysFromNow, haversineKm } from '@/lib/geo';
 import { LISTING_EXPIRY_DAYS } from '@/lib/config';
 import {
+  assertAnyEntitlement,
   assertEntitlement,
   filterKnownEntitlements,
   hasEntitlement,
@@ -249,6 +250,9 @@ export const supabaseDb = {
   },
 
   async updateProfile(userId: string, patch: Partial<Profile>) {
+    const me = await this.getSession();
+    if (me?.id !== userId) throw new Error('Autentifică-te din nou.');
+    assertEntitlement(me, 'profile.edit');
     const update: Record<string, unknown> = {};
     if (patch.displayName !== undefined) update.display_name = patch.displayName;
     if (patch.avatarUrl !== undefined) update.avatar_url = patch.avatarUrl;
@@ -324,7 +328,7 @@ export const supabaseDb = {
     description?: string;
     entitlements: string[];
   }) {
-    await this.requireEntitlement('admin.roles.manage');
+    await this.requireEntitlement('admin.roles.write');
     const id = input.id.trim().toLowerCase();
     if (!isValidRoleSlug(id)) {
       throw new Error('ID rol invalid. Folosește litere mici, cifre, _ sau -.');
@@ -367,7 +371,7 @@ export const supabaseDb = {
   },
 
   async deleteRole(roleId: string) {
-    await this.requireEntitlement('admin.roles.manage');
+    await this.requireEntitlement('admin.roles.delete');
     const { error } = await client().from('roles').delete().eq('id', roleId);
     if (error) throw new Error(error.message);
     await this.loadRoleCatalog();
@@ -377,7 +381,12 @@ export const supabaseDb = {
     targetUserId: string,
     patch: { roles?: UserRole[]; deactivated?: boolean },
   ) {
-    const actor = await this.requireEntitlement('admin.users.manage');
+    const actor = await this.getSession();
+    if (patch.roles !== undefined) assertEntitlement(actor, 'admin.users.roles');
+    if (patch.deactivated !== undefined) assertEntitlement(actor, 'admin.users.deactivate');
+    if (patch.roles === undefined && patch.deactivated === undefined) {
+      assertAnyEntitlement(actor, ['admin.users.roles', 'admin.users.deactivate']);
+    }
     const current = await fetchProfile(targetUserId);
     if (!current) throw new Error('Utilizator negăsit.');
 
@@ -390,7 +399,7 @@ export const supabaseDb = {
           ? null
           : current.deactivatedAt;
 
-    if (actor.id === targetUserId) {
+    if (actor!.id === targetUserId) {
       if (!hasEntitlement({ roles: nextRoles, deactivatedAt: nextDeactivatedAt }, 'admin.panel')) {
         throw new Error('Nu îți poți elimina propriul drept de administrator.');
       }
@@ -416,9 +425,7 @@ export const supabaseDb = {
 
   async listMarketingAds(): Promise<MarketingAd[]> {
     const me = await this.getSession();
-    if (!hasEntitlement(me, 'marketing.panel') && !hasEntitlement(me, 'admin.panel')) {
-      throw new Error('Acces interzis. Îți lipsește dreptul necesar.');
-    }
+    assertAnyEntitlement(me, ['marketing.panel', 'marketing.ads.read']);
     const { data, error } = await client()
       .from('marketing_ads')
       .select('*')
@@ -450,9 +457,7 @@ export const supabaseDb = {
     active: boolean;
   }): Promise<MarketingAd> {
     const me = await this.getSession();
-    if (!hasEntitlement(me, 'marketing.ads') && !hasEntitlement(me, 'admin.panel')) {
-      throw new Error('Acces interzis. Îți lipsește dreptul necesar.');
-    }
+    assertEntitlement(me, 'marketing.ads.write');
     if (!me) throw new Error('Autentifică-te din nou.');
     const title = input.title.trim();
     if (!title) throw new Error('Completează subiectul schiței.');
@@ -506,9 +511,7 @@ export const supabaseDb = {
 
   async deleteMarketingAd(adId: string) {
     const me = await this.getSession();
-    if (!hasEntitlement(me, 'marketing.ads') && !hasEntitlement(me, 'admin.panel')) {
-      throw new Error('Acces interzis. Îți lipsește dreptul necesar.');
-    }
+    assertEntitlement(me, 'marketing.ads.delete');
     const { error } = await client().from('marketing_ads').delete().eq('id', adId);
     if (error) throw new Error(error.message);
   },
@@ -556,13 +559,10 @@ export const supabaseDb = {
   async requestPhoneVerification(userId: string, phoneInput: string) {
     const phone = normalizeRoPhone(phoneInput);
     if (!phone) throw new Error('Număr invalid. Folosește un mobil românesc (07…).');
+    const me = await this.getSession();
+    if (me?.id !== userId) throw new Error('Autentifică-te din nou.');
+    assertEntitlement(me, 'profile.phone');
     const sb = client();
-    const {
-      data: { user },
-      error: userError,
-    } = await sb.auth.getUser();
-    if (userError) throw new Error(userError.message);
-    if (!user || user.id !== userId) throw new Error('Autentifică-te din nou.');
 
     const { error } = await sb.auth.updateUser({ phone });
     if (error) throw new Error(error.message);
@@ -575,13 +575,10 @@ export const supabaseDb = {
     const code = token.trim();
     if (!/^\d{6}$/.test(code)) throw new Error('Codul trebuie să aibă 6 cifre.');
 
+    const me = await this.getSession();
+    if (me?.id !== userId) throw new Error('Autentifică-te din nou.');
+    assertEntitlement(me, 'profile.phone');
     const sb = client();
-    const {
-      data: { user: sessionUser },
-      error: userError,
-    } = await sb.auth.getUser();
-    if (userError) throw new Error(userError.message);
-    if (!sessionUser || sessionUser.id !== userId) throw new Error('Autentifică-te din nou.');
 
     const { data, error } = await sb.auth.verifyOtp({
       phone,
@@ -607,13 +604,10 @@ export const supabaseDb = {
   },
 
   async clearPhone(userId: string) {
+    const me = await this.getSession();
+    if (me?.id !== userId) throw new Error('Autentifică-te din nou.');
+    assertEntitlement(me, 'profile.phone');
     const sb = client();
-    const {
-      data: { user },
-      error: userError,
-    } = await sb.auth.getUser();
-    if (userError) throw new Error(userError.message);
-    if (!user || user.id !== userId) throw new Error('Autentifică-te din nou.');
 
     const { data: row, error } = await sb
       .from('profiles')
@@ -626,13 +620,10 @@ export const supabaseDb = {
   },
 
   async deleteAccount(userId: string) {
+    const me = await this.getSession();
+    if (me?.id !== userId) throw new Error('Autentifică-te din nou.');
+    assertEntitlement(me, 'account.delete');
     const sb = client();
-    const {
-      data: { user },
-      error: userError,
-    } = await sb.auth.getUser();
-    if (userError) throw new Error(userError.message);
-    if (!user || user.id !== userId) throw new Error('Autentifică-te din nou.');
 
     // Prefer Edge Function (service role) for hard Auth deletion.
     const { data, error } = await sb.functions.invoke('delete-account', { body: {} });
@@ -741,6 +732,8 @@ export const supabaseDb = {
   },
 
   async listingsForSeller(sellerId: string) {
+    const me = await this.getSession();
+    if (me?.id === sellerId) assertEntitlement(me, 'listings.read_own');
     const { data, error } = await client()
       .from('listings')
       .select('*')
@@ -752,6 +745,9 @@ export const supabaseDb = {
   },
 
   async createListing(sellerId: string, draft: ListingDraft) {
+    const me = await this.getSession();
+    if (me?.id !== sellerId) throw new Error('Autentifică-te din nou.');
+    assertEntitlement(me, 'listings.create');
     const now = new Date().toISOString();
     const city = getCity(draft.cityId);
     const approx = approximateCoords(draft.lat || city?.lat || 45.9, draft.lng || city?.lng || 24.9);
@@ -801,6 +797,20 @@ export const supabaseDb = {
   },
 
   async updateListing(listingId: string, sellerId: string, patch: Partial<ListingDraft>) {
+    const me = await this.getSession();
+    if (me?.id !== sellerId) throw new Error('Autentifică-te din nou.');
+    const { photoUrls, ...listingPatch } = patch;
+    const statusOnly =
+      Object.keys(listingPatch).length === 1 && listingPatch.status !== undefined && !photoUrls;
+    if (statusOnly) {
+      assertEntitlement(
+        me,
+        listingPatch.status === 'removed' ? 'listings.delete_own' : 'listings.status_own',
+      );
+    } else {
+      assertEntitlement(me, 'listings.edit_own');
+    }
+
     const current = await this.getListing(listingId);
     if (!current || current.sellerId !== sellerId) throw new Error('Anunțul nu a fost găsit.');
 
@@ -854,10 +864,10 @@ export const supabaseDb = {
       .single();
     if (error) throw new Error(error.message);
 
-    if (patch.photoUrls) {
+    if (photoUrls) {
       await client().from('listing_photos').delete().eq('listing_id', listingId);
-      if (patch.photoUrls.length) {
-        const photos = patch.photoUrls.map((url, i) => ({
+      if (photoUrls.length) {
+        const photos = photoUrls.map((url, i) => ({
           listing_id: listingId,
           url,
           sort_order: i,
@@ -876,10 +886,13 @@ export const supabaseDb = {
   },
 
   async deleteListing(listingId: string, sellerId: string) {
-    return this.setListingStatus(listingId, sellerId, 'removed');
+    return this.updateListing(listingId, sellerId, { status: 'removed' } as Partial<ListingDraft>);
   },
 
   async getFavorites(userId: string) {
+    const me = await this.getSession();
+    if (me?.id !== userId) throw new Error('Autentifică-te din nou.');
+    assertEntitlement(me, 'favorites.read');
     const { data, error } = await client()
       .from('favorites')
       .select('listing_id')
@@ -908,6 +921,9 @@ export const supabaseDb = {
   },
 
   async toggleFavorite(userId: string, listingId: string) {
+    const me = await this.getSession();
+    if (me?.id !== userId) throw new Error('Autentifică-te din nou.');
+    assertEntitlement(me, 'favorites.write');
     const exists = await this.isFavorite(userId, listingId);
     if (exists) {
       const { error } = await client()
@@ -927,6 +943,9 @@ export const supabaseDb = {
   },
 
   async listConversations(userId: string): Promise<ConversationWithMeta[]> {
+    const me = await this.getSession();
+    if (me?.id !== userId) throw new Error('Autentifică-te din nou.');
+    assertEntitlement(me, 'messages.read');
     const { data, error } = await client()
       .from('conversations')
       .select('*')
@@ -1006,6 +1025,9 @@ export const supabaseDb = {
   },
 
   async getMessages(conversationId: string, userId: string) {
+    const me = await this.getSession();
+    if (me?.id !== userId) throw new Error('Autentifică-te din nou.');
+    assertEntitlement(me, 'messages.read');
     const conversation = await this.getConversation(conversationId, userId);
     if (!conversation) throw new Error('Conversația nu a fost găsită.');
     const { data, error } = await client()
@@ -1018,6 +1040,9 @@ export const supabaseDb = {
   },
 
   async sendMessage(conversationId: string, senderId: string, body: string) {
+    const me = await this.getSession();
+    if (me?.id !== senderId) throw new Error('Autentifică-te din nou.');
+    assertEntitlement(me, 'messages.send');
     const text = body.trim();
     if (!text) throw new Error('Mesajul nu poate fi gol.');
     const conversation = await this.getConversation(conversationId, senderId);
@@ -1048,6 +1073,9 @@ export const supabaseDb = {
     sellerId: string;
     initialMessage?: string;
   }) {
+    const me = await this.getSession();
+    if (me?.id !== params.buyerId) throw new Error('Autentifică-te din nou.');
+    assertEntitlement(me, 'messages.start');
     if (params.buyerId === params.sellerId) {
       throw new Error('Nu poți contacta propriul anunț.');
     }

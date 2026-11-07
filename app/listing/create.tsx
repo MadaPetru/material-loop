@@ -32,7 +32,7 @@ const CONDITIONS = Object.keys(conditionLabels) as ProductCondition[];
 const UNITS = Object.keys(unitLabels) as MeasurementUnit[];
 
 export default function CreateListingScreen() {
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const { t } = useLocale();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -144,6 +144,14 @@ export default function CreateListingScreen() {
       <View style={styles.center}>
         <Text style={styles.msg}>{t('createListing.loginToPublish')}</Text>
         <Button label={t('createListing.login')} onPress={() => router.push('/(auth)/login')} />
+      </View>
+    );
+  }
+
+  if (!can('listings.create')) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.msg}>{t('errors.permission')}</Text>
       </View>
     );
   }

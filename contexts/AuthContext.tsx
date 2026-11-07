@@ -20,7 +20,7 @@ type AuthContextValue = {
   entitlements: Entitlement[];
   /**
    * RBAC gate — check entitlements, never roles:
-   * `can('admin.panel')`, `can('listings.create')`, …
+   * `can('listings.edit_own')`, `can('messages.send')`, `can('admin.users.roles')`, …
    */
   can: (entitlement: Entitlement) => boolean;
   canAny: (entitlements: readonly Entitlement[]) => boolean;

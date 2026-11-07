@@ -22,7 +22,7 @@ import type { ListingStatus, ListingWithRelations } from '@/lib/types';
 
 export default function ListingDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const { t } = useLocale();
   const [listing, setListing] = useState<ListingWithRelations | null>(null);
   const [favorite, setFavorite] = useState(false);
@@ -185,55 +185,61 @@ export default function ListingDetailScreen() {
         ) : null}
 
         <View style={styles.utilityRow}>
-          <Pressable
-            accessibilityRole="button"
-            onPress={toggleFavorite}
-            style={[styles.utilityBtn, favorite && styles.utilityBtnActive]}
-          >
-            <Text style={[styles.utilityText, favorite && styles.utilityTextActive]}>
-              {favorite ? t('listing.removeFavorite') : t('listing.addFavorite')}
-            </Text>
-          </Pressable>
+          {can('favorites.write') || !user ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={toggleFavorite}
+              style={[styles.utilityBtn, favorite && styles.utilityBtnActive]}
+            >
+              <Text style={[styles.utilityText, favorite && styles.utilityTextActive]}>
+                {favorite ? t('listing.removeFavorite') : t('listing.addFavorite')}
+              </Text>
+            </Pressable>
+          ) : null}
           <Pressable accessibilityRole="button" onPress={share} style={styles.utilityBtn}>
             <Text style={styles.utilityText}>{t('listing.share')}</Text>
           </Pressable>
         </View>
 
         {!isOwner ? (
-          <Button
-            label={t('listing.contactSeller')}
-            onPress={async () => {
-              if (!user) {
-                router.push('/(auth)/login');
-                return;
-              }
-              try {
-                const conversation = await marketplace.startConversation({
-                  listingId: listing.id,
-                  buyerId: user.id,
-                  sellerId: listing.sellerId,
-                  initialMessage: t('messages.contactStarter', { title: listing.title }),
-                });
-                router.push({
-                  pathname: '/(tabs)/messages',
-                  params: { conversationId: conversation.id },
-                });
-              } catch (e) {
-                Alert.alert(
-                  t('nav.messages'),
-                  e instanceof Error ? e.message : t('listing.contactFailed')
-                );
-              }
-            }}
-          />
+          can('messages.start') || !user ? (
+            <Button
+              label={t('listing.contactSeller')}
+              onPress={async () => {
+                if (!user) {
+                  router.push('/(auth)/login');
+                  return;
+                }
+                try {
+                  const conversation = await marketplace.startConversation({
+                    listingId: listing.id,
+                    buyerId: user.id,
+                    sellerId: listing.sellerId,
+                    initialMessage: t('messages.contactStarter', { title: listing.title }),
+                  });
+                  router.push({
+                    pathname: '/(tabs)/messages',
+                    params: { conversationId: conversation.id },
+                  });
+                } catch (e) {
+                  Alert.alert(
+                    t('nav.messages'),
+                    e instanceof Error ? e.message : t('listing.contactFailed')
+                  );
+                }
+              }}
+            />
+          ) : null
         ) : (
           <View style={styles.manageCard}>
             <Text style={styles.manageTitle}>{t('listing.manageTitle')}</Text>
-            <Button
-              label={t('listing.edit')}
-              onPress={() => router.push(`/listing/${listing.id}/edit`)}
-            />
-            {(canMarkReserved || canMarkDone || canReactivate) ? (
+            {can('listings.edit_own') ? (
+              <Button
+                label={t('listing.edit')}
+                onPress={() => router.push(`/listing/${listing.id}/edit`)}
+              />
+            ) : null}
+            {can('listings.status_own') && (canMarkReserved || canMarkDone || canReactivate) ? (
               <View style={styles.statusBlock}>
                 <Text style={styles.statusHint}>{t('listing.statusHint')}</Text>
                 <View style={styles.statusActions}>
@@ -274,23 +280,25 @@ export default function ListingDetailScreen() {
                 </View>
               </View>
             ) : null}
-            <Pressable
-              accessibilityRole="button"
-              disabled={busyStatus}
-              onPress={() => {
-                Alert.alert(t('listing.deleteConfirmTitle'), t('listing.deleteConfirmBody'), [
-                  { text: t('common.cancel'), style: 'cancel' },
-                  {
-                    text: t('listing.delete'),
-                    style: 'destructive',
-                    onPress: () => markStatus('removed'),
-                  },
-                ]);
-              }}
-              style={styles.deleteLink}
-            >
-              <Text style={styles.deleteLinkText}>{t('listing.delete')}</Text>
-            </Pressable>
+            {can('listings.delete_own') ? (
+              <Pressable
+                accessibilityRole="button"
+                disabled={busyStatus}
+                onPress={() => {
+                  Alert.alert(t('listing.deleteConfirmTitle'), t('listing.deleteConfirmBody'), [
+                    { text: t('common.cancel'), style: 'cancel' },
+                    {
+                      text: t('listing.delete'),
+                      style: 'destructive',
+                      onPress: () => markStatus('removed'),
+                    },
+                  ]);
+                }}
+                style={styles.deleteLink}
+              >
+                <Text style={styles.deleteLinkText}>{t('listing.delete')}</Text>
+              </Pressable>
+            ) : null}
           </View>
         )}
       </View>

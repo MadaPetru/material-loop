@@ -22,7 +22,11 @@ export function DesktopNav() {
     { href: '/favorites', label: t('nav.favorites'), match: (p: string) => p.startsWith('/favorites') },
     { href: '/messages', label: t('nav.messages'), match: (p: string) => p.startsWith('/messages') },
     { href: '/contact', label: t('nav.contact'), match: (p: string) => p.startsWith('/contact') },
-    ...(can('admin.panel') || can('marketing.panel')
+    ...(can('admin.panel') ||
+    can('marketing.panel') ||
+    can('admin.users.read') ||
+    can('admin.roles.read') ||
+    can('marketing.ads.read')
       ? [
           {
             href: '/admin',

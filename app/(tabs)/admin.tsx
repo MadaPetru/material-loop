@@ -48,22 +48,31 @@ export default function AdminScreen() {
   const { t, locale } = useLocale();
   const { contentPad, isDesktop } = useResponsive();
 
-  const allowed = can('admin.panel') || can('marketing.panel');
-  const canReadUsers = can('admin.users.read') || can('admin.panel');
-  const canManageUsers = can('admin.users.manage');
+  const allowed =
+    can('admin.panel') ||
+    can('marketing.panel') ||
+    can('admin.users.read') ||
+    can('admin.roles.read') ||
+    can('marketing.ads.read');
+  const canReadUsers = can('admin.users.read');
+  const canAssignRoles = can('admin.users.roles');
+  const canDeactivateUsers = can('admin.users.deactivate');
   const canSeeAnalytics = can('admin.analytics');
-  const canManageRoles = can('admin.roles.manage') || can('admin.panel');
-  const canMarketing = can('marketing.panel') || can('admin.panel');
-  const canMarketingAds = can('marketing.ads') || can('admin.panel');
-  const canOutreach = can('marketing.email') || can('admin.users.email') || can('admin.panel');
+  const canReadRoles = can('admin.roles.read') || can('admin.roles.write') || can('admin.roles.delete');
+  const canWriteRoles = can('admin.roles.write');
+  const canDeleteRoles = can('admin.roles.delete');
+  const canMarketing = can('marketing.panel') || can('marketing.ads.read');
+  const canMarketingAdsWrite = can('marketing.ads.write');
+  const canMarketingAdsDelete = can('marketing.ads.delete');
+  const canOutreach = can('marketing.email') || can('admin.users.email');
 
   const sections = useMemo(() => {
     const list: AdminSection[] = [];
     if (can('admin.panel') || canReadUsers) list.push('users');
-    if (canManageRoles) list.push('roles');
+    if (canReadRoles) list.push('roles');
     if (canMarketing) list.push('marketing');
     return list;
-  }, [can, canReadUsers, canManageRoles, canMarketing]);
+  }, [can, canReadUsers, canReadRoles, canMarketing]);
 
   const [section, setSection] = useState<AdminSection>('users');
   const [users, setUsers] = useState<Profile[]>([]);
@@ -528,7 +537,7 @@ export default function AdminScreen() {
         <>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.section}>{t('admin.rolesSection')}</Text>
-            {canManageRoles ? (
+            {canWriteRoles ? (
               <Button
                 label={t('admin.createRole')}
                 compact
@@ -660,7 +669,7 @@ export default function AdminScreen() {
 
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.section}>{t('admin.marketingAdsSection')}</Text>
-            {canMarketingAds ? (
+            {canMarketingAdsWrite ? (
               <Button
                 label={t('admin.createAd')}
                 compact
@@ -808,7 +817,7 @@ export default function AdminScreen() {
                       style={styles.action}
                     />
                   ) : null}
-                  {canManageUsers && !self ? (
+                  {canAssignRoles && !self ? (
                     <Button
                       label={t('admin.editRoles')}
                       variant="ghost"
@@ -821,7 +830,7 @@ export default function AdminScreen() {
                       style={styles.action}
                     />
                   ) : null}
-                  {canManageUsers && !self ? (
+                  {canDeactivateUsers && !self ? (
                     <Button
                       label={profile.deactivatedAt ? t('admin.reactivate') : t('admin.deactivate')}
                       variant={profile.deactivatedAt ? 'secondary' : 'danger'}
@@ -855,24 +864,26 @@ export default function AdminScreen() {
                 <Text style={styles.entitlements} numberOfLines={3}>
                   {role.entitlements.join(' · ') || t('admin.noEntitlements')}
                 </Text>
-                {canManageRoles ? (
+                {canWriteRoles || canDeleteRoles ? (
                   <View style={styles.cardActions}>
-                    <Button
-                      label={t('admin.editRole')}
-                      variant="secondary"
-                      compact
-                      onPress={() =>
-                        setRoleForm({
-                          id: role.id,
-                          label: role.label,
-                          description: role.description,
-                          entitlements: [...role.entitlements],
-                          editing: true,
-                        })
-                      }
-                      style={styles.action}
-                    />
-                    {!role.system ? (
+                    {canWriteRoles ? (
+                      <Button
+                        label={t('admin.editRole')}
+                        variant="secondary"
+                        compact
+                        onPress={() =>
+                          setRoleForm({
+                            id: role.id,
+                            label: role.label,
+                            description: role.description,
+                            entitlements: [...role.entitlements],
+                            editing: true,
+                          })
+                        }
+                        style={styles.action}
+                      />
+                    ) : null}
+                    {canDeleteRoles && !role.system ? (
                       <Button
                         label={t('admin.deleteRole')}
                         variant="danger"
@@ -906,29 +917,33 @@ export default function AdminScreen() {
                     style={styles.action}
                   />
                 ) : null}
-                {canMarketingAds ? (
+                {canMarketingAdsWrite || canMarketingAdsDelete ? (
                   <>
-                    <Button
-                      label={t('admin.editAd')}
-                      variant="secondary"
-                      compact
-                      onPress={() =>
-                        setAdForm({
-                          id: ad.id,
-                          title: ad.title,
-                          body: ad.body,
-                          active: ad.active,
-                        })
-                      }
-                      style={styles.action}
-                    />
-                    <Button
-                      label={t('admin.deleteAd')}
-                      variant="danger"
-                      compact
-                      onPress={() => setPending({ type: 'deleteAd', ad })}
-                      style={styles.action}
-                    />
+                    {canMarketingAdsWrite ? (
+                      <Button
+                        label={t('admin.editAd')}
+                        variant="secondary"
+                        compact
+                        onPress={() =>
+                          setAdForm({
+                            id: ad.id,
+                            title: ad.title,
+                            body: ad.body,
+                            active: ad.active,
+                          })
+                        }
+                        style={styles.action}
+                      />
+                    ) : null}
+                    {canMarketingAdsDelete ? (
+                      <Button
+                        label={t('admin.deleteAd')}
+                        variant="danger"
+                        compact
+                        onPress={() => setPending({ type: 'deleteAd', ad })}
+                        style={styles.action}
+                      />
+                    ) : null}
                   </>
                 ) : null}
               </View>
@@ -1114,9 +1129,15 @@ export default function AdminScreen() {
                   <Text style={styles.groupLabel}>
                     {group.id === 'app'
                       ? t('admin.entGroupApp')
-                      : group.id === 'admin'
-                        ? t('admin.entGroupAdmin')
-                        : t('admin.entGroupMarketing')}
+                      : group.id === 'listings'
+                        ? t('admin.entGroupListings')
+                        : group.id === 'engagement'
+                          ? t('admin.entGroupEngagement')
+                          : group.id === 'profile'
+                            ? t('admin.entGroupProfile')
+                            : group.id === 'admin'
+                              ? t('admin.entGroupAdmin')
+                              : t('admin.entGroupMarketing')}
                   </Text>
                   {group.entitlements.map((ent) => {
                     const on = roleForm?.entitlements.includes(ent) ?? false;

@@ -49,7 +49,7 @@ cp .env.example .env
 7. Pentru **roluri / admin** pe Supabase: aplică migrările `008`–`013` (catalog `roles` + ads marketing), apoi:
    `update profiles set roles = array['user','admin'] where email = 'you@example.com';`
    Rolurile și entitlement-urile se editează din panoul Admin → Roles.
-   Accesul UI se controlează prin **entitlements** pe rol (`lib/entitlements.ts` → `ROLE_DEFINITIONS`).
+   Accesul UI/API se controlează prin **entitlements** acțiune-cu-acțiune (`lib/entitlements.ts`).
 
 ## Deploy web (Vercel)
 

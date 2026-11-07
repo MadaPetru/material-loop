@@ -34,7 +34,7 @@ const UNITS = Object.keys(unitLabels) as MeasurementUnit[];
 
 export default function EditListingScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const { t } = useLocale();
 
   const [loading, setLoading] = useState(true);
@@ -136,7 +136,7 @@ export default function EditListingScreen() {
           setForbidden(true);
           return;
         }
-        if (!user || item.sellerId !== user.id) {
+        if (!user || item.sellerId !== user.id || !can('listings.edit_own')) {
           setForbidden(true);
           return;
         }
@@ -173,7 +173,7 @@ export default function EditListingScreen() {
     return () => {
       active = false;
     };
-  }, [id, user]);
+  }, [id, user, can]);
 
   const pickPhotos = async () => {
     try {

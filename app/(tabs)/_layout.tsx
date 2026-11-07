@@ -20,7 +20,12 @@ export default function TabLayout() {
   const { isDesktop, isTablet } = useResponsive();
   const { t, locale } = useLocale();
   const { can, refresh, user } = useAuth();
-  const showAdmin = can('admin.panel') || can('marketing.panel');
+  const showAdmin =
+    can('admin.panel') ||
+    can('marketing.panel') ||
+    can('admin.users.read') ||
+    can('admin.roles.read') ||
+    can('marketing.ads.read');
   const hideTabBar = isDesktop;
 
   // Reload profile (roles → entitlements) so Admin tab appears after DB/admin changes.

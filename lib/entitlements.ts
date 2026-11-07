@@ -3,22 +3,51 @@ import type { Profile, RoleDefinition, UserRole } from '@/lib/types';
 /**
  * Capability catalog. UI and APIs MUST gate on entitlements, never on role names.
  * Entitlement IDs are fixed in code — admin only links them to DB roles.
+ *
+ * Prefer action-specific IDs (`listings.edit_own`, `messages.send`, …).
+ * Coarse legacy IDs still expand when loaded from older role rows.
  */
 export const ENTITLEMENTS = [
+  // App
   'app.access',
+
+  // Listings
   'listings.create',
-  'listings.manage_own',
-  'messages.use',
-  'favorites.use',
+  'listings.edit_own',
+  'listings.status_own',
+  'listings.delete_own',
+  'listings.read_own',
+
+  // Favorites
+  'favorites.read',
+  'favorites.write',
+
+  // Messages
+  'messages.read',
+  'messages.send',
+  'messages.start',
+
+  // Profile / account
   'profile.edit',
+  'profile.phone',
+  'account.delete',
+
+  // Admin
   'admin.panel',
   'admin.users.read',
-  'admin.users.manage',
+  'admin.users.roles',
+  'admin.users.deactivate',
   'admin.users.email',
   'admin.analytics',
-  'admin.roles.manage',
+  'admin.roles.read',
+  'admin.roles.write',
+  'admin.roles.delete',
+
+  // Marketing
   'marketing.panel',
-  'marketing.ads',
+  'marketing.ads.read',
+  'marketing.ads.write',
+  'marketing.ads.delete',
   'marketing.email',
 ] as const;
 
@@ -26,33 +55,126 @@ export type Entitlement = (typeof ENTITLEMENTS)[number];
 
 export const ENTITLEMENT_SET = new Set<string>(ENTITLEMENTS);
 
+/**
+ * Older coarse entitlement IDs → current action-specific ones.
+ * Applied when loading roles from DB / demo storage so existing rows keep working.
+ */
+export const LEGACY_ENTITLEMENT_EXPANSIONS: Record<string, readonly Entitlement[]> = {
+  'listings.manage_own': [
+    'listings.edit_own',
+    'listings.status_own',
+    'listings.delete_own',
+    'listings.read_own',
+  ],
+  'favorites.use': ['favorites.read', 'favorites.write'],
+  'messages.use': ['messages.read', 'messages.send', 'messages.start'],
+  'admin.users.manage': ['admin.users.roles', 'admin.users.deactivate'],
+  'admin.roles.manage': ['admin.roles.read', 'admin.roles.write', 'admin.roles.delete'],
+  'marketing.ads': ['marketing.ads.read', 'marketing.ads.write', 'marketing.ads.delete'],
+};
+
 export const ENTITLEMENT_GROUPS: { id: string; entitlements: readonly Entitlement[] }[] = [
   {
     id: 'app',
+    entitlements: ['app.access'],
+  },
+  {
+    id: 'listings',
     entitlements: [
-      'app.access',
       'listings.create',
-      'listings.manage_own',
-      'messages.use',
-      'favorites.use',
-      'profile.edit',
+      'listings.edit_own',
+      'listings.status_own',
+      'listings.delete_own',
+      'listings.read_own',
     ],
+  },
+  {
+    id: 'engagement',
+    entitlements: [
+      'favorites.read',
+      'favorites.write',
+      'messages.read',
+      'messages.send',
+      'messages.start',
+    ],
+  },
+  {
+    id: 'profile',
+    entitlements: ['profile.edit', 'profile.phone', 'account.delete'],
   },
   {
     id: 'admin',
     entitlements: [
       'admin.panel',
       'admin.users.read',
-      'admin.users.manage',
+      'admin.users.roles',
+      'admin.users.deactivate',
       'admin.users.email',
       'admin.analytics',
-      'admin.roles.manage',
+      'admin.roles.read',
+      'admin.roles.write',
+      'admin.roles.delete',
     ],
   },
   {
     id: 'marketing',
-    entitlements: ['marketing.panel', 'marketing.ads', 'marketing.email'],
+    entitlements: [
+      'marketing.panel',
+      'marketing.ads.read',
+      'marketing.ads.write',
+      'marketing.ads.delete',
+      'marketing.email',
+    ],
   },
+];
+
+/** Default marketplace member capabilities. */
+export const USER_ENTITLEMENTS: Entitlement[] = [
+  'app.access',
+  'listings.create',
+  'listings.edit_own',
+  'listings.status_own',
+  'listings.delete_own',
+  'listings.read_own',
+  'favorites.read',
+  'favorites.write',
+  'messages.read',
+  'messages.send',
+  'messages.start',
+  'profile.edit',
+  'profile.phone',
+  'account.delete',
+];
+
+/** Full administration + marketplace member. */
+export const ADMIN_ENTITLEMENTS: Entitlement[] = [
+  ...USER_ENTITLEMENTS,
+  'admin.panel',
+  'admin.users.read',
+  'admin.users.roles',
+  'admin.users.deactivate',
+  'admin.users.email',
+  'admin.analytics',
+  'admin.roles.read',
+  'admin.roles.write',
+  'admin.roles.delete',
+  'marketing.panel',
+  'marketing.ads.read',
+  'marketing.ads.write',
+  'marketing.ads.delete',
+  'marketing.email',
+];
+
+/** Ads + outreach (read users for recipient lists). */
+export const MARKETING_ENTITLEMENTS: Entitlement[] = [
+  'app.access',
+  'admin.users.read',
+  'admin.users.email',
+  'marketing.panel',
+  'marketing.ads.read',
+  'marketing.ads.write',
+  'marketing.ads.delete',
+  'marketing.email',
 ];
 
 /** Built-in seed used before/without DB catalog (demo + fallback). */
@@ -61,50 +183,21 @@ export const DEFAULT_ROLE_DEFINITIONS: RoleDefinition[] = [
     id: 'user',
     label: 'User',
     description: 'Default marketplace member',
-    entitlements: [
-      'app.access',
-      'listings.create',
-      'listings.manage_own',
-      'messages.use',
-      'favorites.use',
-      'profile.edit',
-    ],
+    entitlements: [...USER_ENTITLEMENTS],
     system: true,
   },
   {
     id: 'admin',
     label: 'Admin',
     description: 'Full administration',
-    entitlements: [
-      'app.access',
-      'listings.create',
-      'listings.manage_own',
-      'messages.use',
-      'favorites.use',
-      'profile.edit',
-      'admin.panel',
-      'admin.users.read',
-      'admin.users.manage',
-      'admin.users.email',
-      'admin.analytics',
-      'admin.roles.manage',
-      'marketing.panel',
-      'marketing.ads',
-      'marketing.email',
-    ],
+    entitlements: [...ADMIN_ENTITLEMENTS],
     system: true,
   },
   {
     id: 'marketing',
     label: 'Marketing',
     description: 'Ads and outreach',
-    entitlements: [
-      'app.access',
-      'admin.users.read',
-      'marketing.panel',
-      'marketing.ads',
-      'marketing.email',
-    ],
+    entitlements: [...MARKETING_ENTITLEMENTS],
     system: false,
   },
 ];
@@ -144,11 +237,20 @@ export function setRoleDefinitions(roles: RoleDefinition[]) {
   }));
 }
 
+/** Expand legacy coarse IDs, then keep only catalog entitlements. */
 export function filterKnownEntitlements(raw: readonly string[] | null | undefined): Entitlement[] {
   const list = raw ?? [];
-  return Array.from(
-    new Set(list.filter((e): e is Entitlement => ENTITLEMENT_SET.has(e))),
-  );
+  const out = new Set<Entitlement>();
+  for (const item of list) {
+    if (ENTITLEMENT_SET.has(item)) {
+      out.add(item as Entitlement);
+    }
+    const expanded = LEGACY_ENTITLEMENT_EXPANSIONS[item];
+    if (expanded) {
+      for (const e of expanded) out.add(e);
+    }
+  }
+  return Array.from(out);
 }
 
 export function isValidRoleSlug(id: string): boolean {
@@ -251,6 +353,17 @@ export function assertEntitlement(
   message = 'Acces interzis. Îți lipsește dreptul necesar.',
 ): asserts subject is NonNullable<EntitlementSubject> {
   if (!hasEntitlement(subject, entitlement)) {
+    throw new Error(message);
+  }
+}
+
+/** API guard: throws if the subject lacks every listed entitlement. */
+export function assertAnyEntitlement(
+  subject: EntitlementSubject,
+  entitlements: readonly Entitlement[],
+  message = 'Acces interzis. Îți lipsește dreptul necesar.',
+): asserts subject is NonNullable<EntitlementSubject> {
+  if (!hasAnyEntitlement(subject, entitlements)) {
     throw new Error(message);
   }
 }
