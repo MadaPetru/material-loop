@@ -154,6 +154,7 @@ export type TranslationDict = {
     publishListing: string;
     signOut: string;
     legal: string;
+    cookiePreferences: string;
     myListings: string;
     editTitle: string;
     displayName: string;
@@ -346,6 +347,31 @@ export type TranslationDict = {
     resetSuccess: string;
     forgotDemo: string;
     forgotUnavailable: string;
+    legalNoticeBefore: string;
+    legalNoticeAfter: string;
+  };
+  legal: {
+    privacy: string;
+    cookies: string;
+    terms: string;
+    safety: string;
+    safetyLink: string;
+    managePreferences: string;
+    linksTitle: string;
+  };
+  consent: {
+    title: string;
+    body: string;
+    acceptAll: string;
+    necessaryOnly: string;
+    customize: string;
+    save: string;
+    necessary: string;
+    necessaryHint: string;
+    analytics: string;
+    analyticsHint: string;
+    marketing: string;
+    marketingHint: string;
   };
   listing: {
     missing: string;

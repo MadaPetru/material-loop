@@ -12,8 +12,11 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
+import { CookieConsentBanner } from '@/components/legal/CookieConsentBanner';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { ConsentProvider } from '@/contexts/ConsentContext';
 import { LocaleProvider, useLocale } from '@/contexts/LocaleContext';
 import '@/lib/auth/oauth';
 import { colors } from '@/lib/theme';
@@ -46,12 +49,19 @@ export default function RootLayout() {
   if (!loaded) return null;
 
   return (
-    <LocaleProvider>
-      <AuthProvider>
-        <StatusBar style="dark" />
-        <RootNavigator />
-      </AuthProvider>
-    </LocaleProvider>
+    <SafeAreaProvider>
+      <LocaleProvider>
+        <ConsentProvider>
+          <AuthProvider>
+            <>
+              <StatusBar style="dark" />
+              <RootNavigator />
+              <CookieConsentBanner />
+            </>
+          </AuthProvider>
+        </ConsentProvider>
+      </LocaleProvider>
+    </SafeAreaProvider>
   );
 }
 
@@ -78,8 +88,10 @@ function RootNavigator() {
       <Stack.Screen name="u/[id]" options={{ title: t('nav.profile') }} />
       <Stack.Screen name="profile/edit" options={{ title: t('profile.editProfile') }} />
       <Stack.Screen name="my-listings" options={{ title: t('myListings.title') }} />
-      <Stack.Screen name="legal/terms" options={{ title: 'Terms' }} />
-      <Stack.Screen name="legal/safety" options={{ title: 'Safety' }} />
+      <Stack.Screen name="legal/privacy" options={{ title: t('legal.privacy') }} />
+      <Stack.Screen name="legal/cookies" options={{ title: t('legal.cookies') }} />
+      <Stack.Screen name="legal/terms" options={{ title: t('legal.terms') }} />
+      <Stack.Screen name="legal/safety" options={{ title: t('legal.safety') }} />
     </Stack>
   );
 }

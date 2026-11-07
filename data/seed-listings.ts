@@ -7,23 +7,24 @@ import type {
   UserRole,
 } from '@/lib/types';
 import { daysFromNow } from '@/lib/geo';
-import catalog from '@/data/seed-sample.catalog.json';
+import {
+  SEED_SAMPLE_CATALOG,
+  type SeedCatalogListing,
+  type SeedCatalogProfile,
+} from '@/data/seed-sample.catalog';
 
 const now = new Date().toISOString();
 
 const PLACEHOLDER = (label: string, hue: string) =>
   `https://placehold.co/800x600/${hue}/F3EEE6/png?text=${encodeURIComponent(label)}`;
 
-type CatalogProfile = (typeof catalog.profiles)[number];
-type CatalogListing = (typeof catalog.listings)[number];
-
-function mapProfile(row: CatalogProfile): Profile {
+function mapProfile(row: SeedCatalogProfile): Profile {
   return {
     id: row.demoId,
     email: row.email,
     displayName: row.displayName,
     avatarUrl: null,
-    accountType: row.accountType as Profile['accountType'],
+    accountType: row.accountType,
     roles: row.roles as UserRole[],
     cityId: row.cityId,
     phone: null,
@@ -40,7 +41,7 @@ function mapProfile(row: CatalogProfile): Profile {
   };
 }
 
-function mapListing(row: CatalogListing): Listing {
+function mapListing(row: SeedCatalogListing): Listing {
   return {
     id: row.demoId,
     sellerId: row.sellerDemoId,
@@ -74,11 +75,11 @@ function mapListing(row: CatalogListing): Listing {
   };
 }
 
-export const SEED_PROFILES: Profile[] = catalog.profiles.map(mapProfile);
+export const SEED_PROFILES: Profile[] = SEED_SAMPLE_CATALOG.profiles.map(mapProfile);
 
-export const SEED_LISTINGS: Listing[] = catalog.listings.map(mapListing);
+export const SEED_LISTINGS: Listing[] = SEED_SAMPLE_CATALOG.listings.map(mapListing);
 
-export const SEED_PHOTOS: ListingPhoto[] = catalog.listings.map((row, index) => ({
+export const SEED_PHOTOS: ListingPhoto[] = SEED_SAMPLE_CATALOG.listings.map((row, index) => ({
   id: `ph${index + 1}`,
   listingId: row.demoId,
   url: PLACEHOLDER(row.photoLabel, row.photoHue),
@@ -87,5 +88,5 @@ export const SEED_PHOTOS: ListingPhoto[] = catalog.listings.map((row, index) => 
 
 /** Demo-only passwords keyed by email (local AsyncStorage auth). */
 export const SEED_DEMO_PASSWORDS: Record<string, string> = Object.fromEntries(
-  catalog.profiles.map((row) => [row.email, row.password]),
+  SEED_SAMPLE_CATALOG.profiles.map((row) => [row.email, row.password]),
 );

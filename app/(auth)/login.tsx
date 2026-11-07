@@ -1,6 +1,7 @@
 import { Link, router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
+import { AuthLegalNotice } from '@/components/legal/AuthLegalNotice';
 import { Button } from '@/components/ui/Button';
 import { ErrorBanner } from '@/components/ui/ErrorBanner';
 import { Input } from '@/components/ui/Input';
@@ -108,6 +109,7 @@ export default function LoginScreen() {
           <Text style={styles.link}>{t('auth.noAccount')}</Text>
         </Pressable>
       </Link>
+      <AuthLegalNotice />
     </Screen>
   );
 }

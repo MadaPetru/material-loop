@@ -31,6 +31,15 @@ Fără variabile Supabase, aplicația pornește în **mod demonstrație** (date 
 Cont demo: `demo@materialloop.ro` / `demo1234`  
 Cont admin demo: `admin@materialloop.ro` / `demo1234` (tab **Admin**)
 
+## Publicare — GDPR / legal
+
+Înainte de lansare publică:
+
+1. Completează identitatea operatorului în `lib/legal/operator.ts` (`companyName`, `cui`, `address`). Email confidențialitate: `contact@materialloop.ro` (ajustează dacă e nevoie).
+2. Verifică paginile `/legal/privacy`, `/legal/cookies`, `/legal/terms`, `/legal/safety` (EN + RO).
+3. Bannerul de cookie-uri apare la prima vizită; preferințele se pot redeschide din Profil sau din Politica de cookie-uri.
+4. Ștergerea contului există deja în Profil (cerință store / GDPR).
+
 ## Conectare Supabase
 
 1. Creează un proiect pe [supabase.com](https://supabase.com) (sau folosește cel legat).

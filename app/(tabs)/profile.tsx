@@ -9,6 +9,7 @@ import { LanguageSelector } from '@/components/ui/LanguageSelector';
 import { Screen } from '@/components/ui/Screen';
 import { formatCityCounty } from '@/data/romania';
 import { useAuth } from '@/contexts/AuthContext';
+import { useConsent } from '@/contexts/ConsentContext';
 import { useLocale } from '@/contexts/LocaleContext';
 import { formatRoPhoneDisplay } from '@/lib/phone';
 import { toUserError } from '@/lib/userErrors';
@@ -17,6 +18,7 @@ import { useResponsive } from '@/lib/useResponsive';
 
 export default function ProfileScreen() {
   const { user, signOut, deleteAccount, isDemo, can, refresh } = useAuth();
+  const { openPreferences } = useConsent();
   const { t } = useLocale();
   const { isDesktop } = useResponsive();
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -140,9 +142,24 @@ export default function ProfileScreen() {
             style={isDesktop ? styles.actionFlex : undefined}
           />
         </View>
-        <Pressable onPress={() => router.push('/legal/terms')}>
-          <Text style={styles.legal}>{t('profile.legal')}</Text>
-        </Pressable>
+        <View style={styles.legalBlock}>
+          <Text style={styles.legalTitle}>{t('legal.linksTitle')}</Text>
+          <Pressable onPress={() => router.push('/legal/privacy')}>
+            <Text style={styles.legal}>{t('legal.privacy')}</Text>
+          </Pressable>
+          <Pressable onPress={() => router.push('/legal/cookies')}>
+            <Text style={styles.legal}>{t('legal.cookies')}</Text>
+          </Pressable>
+          <Pressable onPress={() => router.push('/legal/terms')}>
+            <Text style={styles.legal}>{t('legal.terms')}</Text>
+          </Pressable>
+          <Pressable onPress={() => router.push('/legal/safety')}>
+            <Text style={styles.legal}>{t('legal.safety')}</Text>
+          </Pressable>
+          <Pressable onPress={openPreferences}>
+            <Text style={styles.legal}>{t('profile.cookiePreferences')}</Text>
+          </Pressable>
+        </View>
         <View style={styles.dangerZone}>
           <Button
             label={t('profile.deleteAccount')}
@@ -200,10 +217,17 @@ const styles = StyleSheet.create({
   actions: { gap: spacing.sm, marginTop: spacing.md },
   actionsRow: { flexDirection: 'row', flexWrap: 'wrap' },
   actionFlex: { flexGrow: 1, minWidth: 160 },
+  legalBlock: { marginTop: spacing.md, gap: 2 },
+  legalTitle: {
+    fontFamily: fonts.sansBold,
+    color: colors.ink,
+    fontSize: 14,
+    marginBottom: spacing.xs,
+  },
   legal: {
     fontFamily: fonts.sansMedium,
     color: colors.brand,
-    marginTop: spacing.sm,
+    marginTop: spacing.xs,
     fontSize: 13,
   },
   dangerZone: {
