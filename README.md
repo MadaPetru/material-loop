@@ -22,7 +22,7 @@ Mesagerie, review-uri, admin, hartă interactivă: etapele următoare.
 
 ```bash
 npm install
-npm run web          # http://127.0.0.1:43127
+npm run web          # http://localhost:8081
 npm start            # Expo Go pe telefon
 ```
 
@@ -59,7 +59,7 @@ Supabase găzduiește Auth/DB; UI-ul Expo web se publică pe Vercel.
    - `EXPO_PUBLIC_SUPABASE_URL`
    - `EXPO_PUBLIC_SUPABASE_ANON_KEY`
 2. Deploy: `npx vercel --prod` (sau conectează repo-ul în dashboard).
-3. În Supabase → Authentication → URL Configuration, adaugă URL-ul Vercel la Site URL / Redirect URLs (`https://your-app.vercel.app/**`).
+3. În Supabase → Authentication → URL Configuration, adaugă originile din Google Console la Redirect URLs (vezi secțiunea Google Sign-In).
 
 Build local: `npm run export:web` → folder `dist/`.
 
@@ -100,10 +100,12 @@ După ce le configurezi în Supabase, spune-mi doar: „Google e activ în Supab
    APIs & Services → **Credentials** → Create credentials → **OAuth client ID**  
    - Application type: **Web application**  
    - Name: `MaterialLoop Supabase`  
-   - **Authorized JavaScript origins**  
-     - `https://YOUR_PROJECT_REF.supabase.co`  
-     - `http://127.0.0.1:43127` (dev web)  
-   - **Authorized redirect URIs** (important):  
+   - **Authorized JavaScript origins** (cele din Google Console acum):  
+     - `http://localhost:8081`  
+     - `https://materialloop.vercel.app`  
+     - `https://materialloop.website`  
+     - `https://www.materialloop.website`  
+   - **Authorized redirect URIs** (obligatoriu pe lângă originile de mai sus):  
      - `https://YOUR_PROJECT_REF.supabase.co/auth/v1/callback`  
    Copiază **Client ID** și **Client Secret**.
 
@@ -113,19 +115,19 @@ După ce le configurezi în Supabase, spune-mi doar: „Google e activ în Supab
    - Client Secret = cel din pasul 3  
    Salvează.
 
-5. **Redirect URL-uri în Supabase** (obligatoriu pentru butonul din app)  
-   Dashboard proiect `aiimxsgmhtxhjgnlfvgm` → **Authentication** → **URL Configuration**  
-   - **Site URL** (dev): `http://127.0.0.1:43127` · (prod): `https://material-loop.vercel.app` (sau domeniul real)  
+5. **Redirect URL-uri în Supabase** (obligatoriu — trebuie să oglindească originile din Google Console)  
+   Dashboard → **Authentication** → **URL Configuration**  
+   - **Site URL** (prod): `https://materialloop.website`  
    - **Redirect URLs** (adaugă toate):
-     - `http://127.0.0.1:43127/**`
-     - `http://localhost:43127/**`
-     - `https://material-loop.vercel.app/**`
+     - `http://localhost:8081/**`
      - `https://materialloop.vercel.app/**`
+     - `https://materialloop.website/**`
+     - `https://www.materialloop.website/**`
      - `materialloop://**`
      - `exp://**` (doar pentru teste în Expo Go)
 
    App-ul trimite `redirectTo`:
-   - Web: `{origin}/login` (ex. `http://127.0.0.1:43127/login`)
+   - Web: `{origin}/login` (ex. `http://localhost:8081/login`, `https://materialloop.website/login`)
    - Native (build): `materialloop://login`
    - Expo Go: URI `exp://…/--/login` generat de `makeRedirectUri`
 

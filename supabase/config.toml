@@ -157,19 +157,20 @@ max_indexes = 5
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
 # in emails.
-site_url = "http://127.0.0.1:43127"
+site_url = "https://materialloop.website"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
+# Keep in sync with Google Console Authorized JavaScript origins + /login paths.
 additional_redirect_urls = [
-  "http://127.0.0.1:43127",
-  "http://127.0.0.1:43127/**",
-  "http://localhost:43127",
-  "http://localhost:43127/**",
-  "https://material-loop.vercel.app",
-  "https://material-loop.vercel.app/**",
+  "http://localhost:8081",
+  "http://localhost:8081/**",
   "https://materialloop.vercel.app",
   "https://materialloop.vercel.app/**",
+  "https://materialloop.website",
+  "https://materialloop.website/**",
+  "https://www.materialloop.website",
+  "https://www.materialloop.website/**",
   "materialloop://**",
   "exp://**",
 ]
