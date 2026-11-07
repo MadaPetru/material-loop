@@ -42,11 +42,21 @@ cp .env.example .env
 ```
 
 4. Reactivează aplicația. Cu `EXPO_PUBLIC_SUPABASE_*` setate, Auth + anunțuri folosesc cloud-ul (nu demo local).
-5. Pentru **verificare telefon (SMS)**: Authentication → Providers → Phone → activează un provider SMS (Twilio / MessageBird etc.). Fără SMS provider, OTP-ul nu ajunge pe telefon real; în **mod demo** folosește codul `123456`.
-6. Pentru **ștergere cont** (hard delete Auth): deploy Edge Function-ul din repo:
+5. Pentru un **feed de anunțuri-exemplu** (surplus / leftover) până apar vânzători reali: aplică migrarea `017_seed_sample_flags.sql`, apoi rulează o singură dată (service role):
+
+```bash
+# PowerShell
+$env:SUPABASE_URL="https://YOUR_PROJECT.supabase.co"
+$env:SUPABASE_SERVICE_ROLE_KEY="your_service_role_key"
+npm run seed:samples
+```
+
+Anunțurile apar pe home/search ca listări normale; sunt marcate `is_seed` și se pot șterge ulterior cu `delete from listings where is_seed;`. Catalogul sursă: `data/seed-sample.catalog.json`.
+6. Pentru **verificare telefon (SMS)**: Authentication → Providers → Phone → activează un provider SMS (Twilio / MessageBird etc.). Fără SMS provider, OTP-ul nu ajunge pe telefon real; în **mod demo** folosește codul `123456`.
+7. Pentru **ștergere cont** (hard delete Auth): deploy Edge Function-ul din repo:
    `npx supabase functions deploy delete-account`
    (necesită proiect link-uit). Fără el, app-ul face un soft-delete (profil dezactivat + anunțuri ascunse) și te deconectează.
-7. Pentru **roluri / admin** pe Supabase: aplică migrările `008`–`013` (catalog `roles` + ads marketing), apoi:
+8. Pentru **roluri / admin** pe Supabase: aplică migrările `008`–`013` (catalog `roles` + ads marketing), apoi:
    `update profiles set roles = array['user','admin'] where email = 'you@example.com';`
    Rolurile și entitlement-urile se editează din panoul Admin → Roles.
    Accesul UI/API se controlează prin **entitlements** acțiune-cu-acțiune (`lib/entitlements.ts`).

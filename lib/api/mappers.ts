@@ -29,6 +29,7 @@ export type DbProfile = {
   completed_sales: number;
   created_at: string;
   deactivated_at: string | null;
+  is_seed?: boolean | null;
 };
 
 export type DbListing = {
@@ -59,6 +60,7 @@ export type DbListing = {
   expires_at: string | null;
   created_at: string;
   updated_at: string;
+  is_seed?: boolean | null;
 };
 
 export type DbPhoto = {
@@ -112,6 +114,7 @@ export function mapProfile(row: DbProfile): Profile {
     completedSales: row.completed_sales,
     createdAt: row.created_at,
     deactivatedAt: row.deactivated_at,
+    isSeed: row.is_seed ?? false,
   };
 }
 
@@ -157,6 +160,7 @@ export function mapListing(row: DbListing): Listing {
     expiresAt: row.expires_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    isSeed: row.is_seed ?? false,
   };
 }
 

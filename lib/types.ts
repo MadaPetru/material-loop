@@ -116,6 +116,8 @@ export interface Profile {
   completedSales: number;
   createdAt: string;
   deactivatedAt: string | null;
+  /** Sample cold-start account; safe to purge when organic supply grows. */
+  isSeed?: boolean;
 }
 
 export interface AdminAnalytics {
@@ -164,6 +166,8 @@ export interface Listing {
   expiresAt: string | null;
   createdAt: string;
   updatedAt: string;
+  /** Sample cold-start listing; safe to purge when organic supply grows. */
+  isSeed?: boolean;
 }
 
 export interface ListingWithRelations extends Listing {

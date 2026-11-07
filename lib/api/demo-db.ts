@@ -1,7 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CATEGORIES, SUBCATEGORIES } from '@/data/categories';
 import { COUNTRY_RO, COUNTIES, CITIES, getCity, getCounty } from '@/data/romania';
-import { SEED_LISTINGS, SEED_PHOTOS, SEED_PROFILES } from '@/data/seed-listings';
+import {
+  SEED_DEMO_PASSWORDS,
+  SEED_LISTINGS,
+  SEED_PHOTOS,
+  SEED_PROFILES,
+} from '@/data/seed-listings';
 import { SEED_MAIL_DRAFTS } from '@/data/seed-mail-drafts';
 import { approximateCoords, daysFromNow, haversineKm } from '@/lib/geo';
 import { createId } from '@/lib/id';
@@ -78,11 +83,7 @@ function defaultState(): DemoState {
     roles: defaultRoles(),
     ads: structuredClone(SEED_MAIL_DRAFTS),
     sessionUserId: null,
-    passwords: {
-      'demo@materialloop.ro': 'demo1234',
-      'ana@example.ro': 'demo1234',
-      'admin@materialloop.ro': 'demo1234',
-    },
+    passwords: { ...SEED_DEMO_PASSWORDS },
     pendingPhone: null,
   };
 }

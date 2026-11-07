@@ -50,7 +50,8 @@
     "web": "expo start --web --port 8081",
     "export:web": "expo export --platform web",
     "typecheck": "tsc --noEmit",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "seed:samples": "node scripts/seed-sample-listings.mjs"
   },
   "private": true
 }
