@@ -8,6 +8,7 @@ import {
   SEED_PROFILES,
 } from '@/data/seed-listings';
 import { SEED_MAIL_DRAFTS } from '@/data/seed-mail-drafts';
+import { resolveListingCoverUrl } from '@/lib/defaultListingPhoto';
 import { approximateCoords, daysFromNow, haversineKm } from '@/lib/geo';
 import { createId } from '@/lib/id';
 import { LISTING_EXPIRY_DAYS } from '@/lib/config';
@@ -820,11 +821,14 @@ export const demoDb = {
       const last = state.messages
         .filter((m) => m.conversationId === c.id)
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+      const listingPhotos = state.photos.filter((p) => p.listingId === c.listingId);
       return withMeta(c, {
         userId,
         otherUser: state.profiles.find((p) => p.id === otherId) ?? null,
         listingTitle: listing?.title,
-        listingPhotoUrl: state.photos.find((p) => p.listingId === c.listingId)?.url ?? null,
+        listingPhotoUrl: listing
+          ? resolveListingCoverUrl(listingPhotos, listing.categoryId, listing.subcategoryId)
+          : null,
         lastMessageBody: last?.body ?? null,
         lastMessageSenderId: last?.senderId ?? null,
       });
@@ -846,11 +850,14 @@ export const demoDb = {
     const last = state.messages
       .filter((m) => m.conversationId === c.id)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+    const listingPhotos = state.photos.filter((p) => p.listingId === c.listingId);
     return withMeta(c, {
       userId,
       otherUser: state.profiles.find((p) => p.id === otherId) ?? null,
       listingTitle: listing?.title,
-      listingPhotoUrl: state.photos.find((p) => p.listingId === c.listingId)?.url ?? null,
+      listingPhotoUrl: listing
+        ? resolveListingCoverUrl(listingPhotos, listing.categoryId, listing.subcategoryId)
+        : null,
       lastMessageBody: last?.body ?? null,
       lastMessageSenderId: last?.senderId ?? null,
     });

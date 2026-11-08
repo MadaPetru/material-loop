@@ -39,6 +39,7 @@ import {
   type DbPhoto,
   type DbProfile,
 } from './mappers';
+import { resolveListingCoverUrl } from '@/lib/defaultListingPhoto';
 import { isPublicFeedListing } from '@/lib/listingVisibility';
 import { mapConversationRow, mapMessageRow, otherParticipantId, withMeta } from './messaging-shared';
 
@@ -995,7 +996,11 @@ export const supabaseDb = {
         const otherId = otherParticipantId(conversation, userId);
         const [{ data: listing }, { data: profile }, { data: lastMsg }, { data: photos }] =
           await Promise.all([
-            client().from('listings').select('title').eq('id', conversation.listingId).maybeSingle(),
+            client()
+              .from('listings')
+              .select('title, category_id, subcategory_id')
+              .eq('id', conversation.listingId)
+              .maybeSingle(),
             client().from('profiles').select('*').eq('id', otherId).maybeSingle(),
             client()
               .from('messages')
@@ -1015,7 +1020,13 @@ export const supabaseDb = {
           userId,
           otherUser: profile ? mapProfile(profile as DbProfile) : null,
           listingTitle: listing?.title,
-          listingPhotoUrl: photos?.[0]?.url ?? null,
+          listingPhotoUrl: listing
+            ? resolveListingCoverUrl(
+                photos ?? [],
+                listing.category_id,
+                listing.subcategory_id
+              )
+            : null,
           lastMessageBody: lastMsg?.body ?? null,
           lastMessageSenderId: lastMsg?.sender_id ?? null,
         });
@@ -1041,7 +1052,11 @@ export const supabaseDb = {
     const otherId = otherParticipantId(conversation, userId);
     const [{ data: listing }, { data: profile }, { data: lastMsg }, { data: photos }] =
       await Promise.all([
-        client().from('listings').select('title').eq('id', conversation.listingId).maybeSingle(),
+        client()
+          .from('listings')
+          .select('title, category_id, subcategory_id')
+          .eq('id', conversation.listingId)
+          .maybeSingle(),
         client().from('profiles').select('*').eq('id', otherId).maybeSingle(),
         client()
           .from('messages')
@@ -1061,7 +1076,9 @@ export const supabaseDb = {
       userId,
       otherUser: profile ? mapProfile(profile as DbProfile) : null,
       listingTitle: listing?.title,
-      listingPhotoUrl: photos?.[0]?.url ?? null,
+      listingPhotoUrl: listing
+        ? resolveListingCoverUrl(photos ?? [], listing.category_id, listing.subcategory_id)
+        : null,
       lastMessageBody: lastMsg?.body ?? null,
       lastMessageSenderId: lastMsg?.sender_id ?? null,
     });

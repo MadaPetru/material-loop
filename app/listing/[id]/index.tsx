@@ -16,6 +16,7 @@ import { formatCityCounty } from '@/data/romania';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocale } from '@/contexts/LocaleContext';
 import { marketplace } from '@/lib/api/marketplace';
+import { resolveListingCoverUrl } from '@/lib/defaultListingPhoto';
 import { conditionLabels, formatPrice, formatQuantity, statusLabels } from '@/lib/labels';
 import { colors, fonts, radii, spacing } from '@/lib/theme';
 import type { ListingStatus, ListingWithRelations } from '@/lib/types';
@@ -62,7 +63,7 @@ export default function ListingDetailScreen() {
   }
 
   const isOwner = user?.id === listing.sellerId;
-  const photo = listing.photos[0]?.url;
+  const photo = resolveListingCoverUrl(listing.photos, listing.categoryId, listing.subcategoryId);
   const canReactivate = listing.status !== 'active' && listing.status !== 'removed';
   const canMarkReserved = listing.status === 'active';
   const canMarkDone = listing.status === 'active' || listing.status === 'reserved';
@@ -101,32 +102,14 @@ export default function ListingDetailScreen() {
 
   return (
     <ScrollView style={styles.root} contentContainerStyle={{ paddingBottom: 56 }}>
-      {photo ? (
-        <Image source={{ uri: photo }} style={styles.hero} contentFit="cover" />
-      ) : (
-        <View style={styles.heroText}>
-          <View style={styles.heroAccent} />
-          <View style={styles.heroTextBody}>
-            <Text style={styles.heroPrice}>
-              {formatPrice(listing.price, listing.currency, listing.isFree)}
-            </Text>
-            <Text style={styles.heroTitle}>{listing.title}</Text>
-          </View>
-        </View>
-      )}
+      <Image source={{ uri: photo }} style={styles.hero} contentFit="cover" />
 
       <View style={styles.body}>
-        {photo ? (
-          <>
-            <Text style={styles.price}>
-              {formatPrice(listing.price, listing.currency, listing.isFree)}
-              {listing.isNegotiable ? ` · ${t('listing.negotiable')}` : ''}
-            </Text>
-            <Text style={styles.title}>{listing.title}</Text>
-          </>
-        ) : listing.isNegotiable ? (
-          <Text style={styles.meta}>{t('listing.negotiable')}</Text>
-        ) : null}
+        <Text style={styles.price}>
+          {formatPrice(listing.price, listing.currency, listing.isFree)}
+          {listing.isNegotiable ? ` · ${t('listing.negotiable')}` : ''}
+        </Text>
+        <Text style={styles.title}>{listing.title}</Text>
 
         <View style={styles.badgeRow}>
           <View style={styles.statusPill}>
@@ -320,23 +303,6 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   missing: { fontFamily: fonts.sans, color: colors.inkMuted },
   hero: { width: '100%', height: 280, backgroundColor: colors.mapDust },
-  heroText: {
-    flexDirection: 'row',
-    backgroundColor: colors.bgElevated,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.line,
-    minHeight: 140,
-  },
-  heroAccent: { width: 6, backgroundColor: colors.brand },
-  heroTextBody: {
-    flex: 1,
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.xl,
-    justifyContent: 'center',
-    gap: spacing.sm,
-  },
-  heroPrice: { fontFamily: fonts.sansBold, fontSize: 22, color: colors.accent },
-  heroTitle: { fontFamily: fonts.display, fontSize: 26, color: colors.ink, lineHeight: 32 },
   body: { padding: spacing.xl, gap: spacing.sm },
   price: { fontFamily: fonts.sansBold, fontSize: 24, color: colors.accent },
   title: { fontFamily: fonts.display, fontSize: 28, color: colors.ink, lineHeight: 34 },
