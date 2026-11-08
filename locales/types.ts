@@ -477,4 +477,10 @@ export type TranslationDict = {
     ro: string;
     en: string;
   };
+  /** Short labels for category default placeholder images. */
+  defaultPhoto: {
+    fallback: string;
+    cat: Record<string, string>;
+    sub: Record<string, string>;
+  };
 };

@@ -20,6 +20,7 @@ import { useLocale } from '@/contexts/LocaleContext';
 import { useUnreadMessages } from '@/contexts/UnreadMessagesContext';
 import { marketplace } from '@/lib/api/marketplace';
 import { IS_DEMO } from '@/lib/config';
+import { resolveListingCoverUrl } from '@/lib/defaultListingPhoto';
 import { getSupabase } from '@/lib/supabase';
 import { colors, fonts, layout, radii, spacing } from '@/lib/theme';
 import { useResponsive } from '@/lib/useResponsive';
@@ -344,9 +345,16 @@ export default function MessagesScreen() {
                     ]}
                   >
                     <View style={styles.avatar}>
-                      {item.listingPhotoUrl ? (
+                      {item.listingCategoryId || item.listingPhotoUrl ? (
                         <Image
-                          source={{ uri: item.listingPhotoUrl }}
+                          source={{
+                            uri: resolveListingCoverUrl(
+                              item.listingPhotoUrl ? [{ url: item.listingPhotoUrl }] : [],
+                              item.listingCategoryId ?? 'cat-other',
+                              item.listingSubcategoryId,
+                              locale
+                            ),
+                          }}
                           style={styles.avatarImg}
                           contentFit="cover"
                         />

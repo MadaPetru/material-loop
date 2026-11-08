@@ -225,7 +225,10 @@ export interface ChatMessage {
 
 export interface ConversationWithMeta extends Conversation {
   listingTitle?: string;
+  /** Uploaded cover only; use category ids + resolveListingCoverUrl for defaults. */
   listingPhotoUrl?: string | null;
+  listingCategoryId?: string | null;
+  listingSubcategoryId?: string | null;
   otherUser?: Profile | null;
   lastMessageBody?: string | null;
   lastMessageSenderId?: string | null;

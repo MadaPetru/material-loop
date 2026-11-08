@@ -66,6 +66,8 @@ export function withMeta(
     otherUser?: Profile | null;
     listingTitle?: string;
     listingPhotoUrl?: string | null;
+    listingCategoryId?: string | null;
+    listingSubcategoryId?: string | null;
     lastMessageBody?: string | null;
     lastMessageSenderId?: string | null;
   }
@@ -76,6 +78,8 @@ export function withMeta(
     otherUser: opts.otherUser ?? null,
     listingTitle: opts.listingTitle,
     listingPhotoUrl: opts.listingPhotoUrl ?? null,
+    listingCategoryId: opts.listingCategoryId ?? null,
+    listingSubcategoryId: opts.listingSubcategoryId ?? null,
     lastMessageBody: opts.lastMessageBody ?? null,
     lastMessageSenderId,
     unread: isConversationUnread(conversation, opts.userId, lastMessageSenderId),

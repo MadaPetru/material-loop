@@ -10,8 +10,13 @@ import type { ListingWithRelations } from '@/lib/types';
 import { formatCityCounty } from '@/data/romania';
 
 export function ListingCard({ listing }: { listing: ListingWithRelations }) {
-  const { t } = useLocale();
-  const photo = resolveListingCoverUrl(listing.photos, listing.categoryId, listing.subcategoryId);
+  const { t, locale } = useLocale();
+  const photo = resolveListingCoverUrl(
+    listing.photos,
+    listing.categoryId,
+    listing.subcategoryId,
+    locale
+  );
   const price = formatPrice(listing.price, listing.currency, listing.isFree);
   const place = formatCityCounty(listing.cityId);
   const qty = formatQuantity(listing.quantity, listing.unit);

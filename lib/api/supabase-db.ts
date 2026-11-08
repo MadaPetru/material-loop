@@ -39,7 +39,6 @@ import {
   type DbPhoto,
   type DbProfile,
 } from './mappers';
-import { resolveListingCoverUrl } from '@/lib/defaultListingPhoto';
 import { isPublicFeedListing } from '@/lib/listingVisibility';
 import { mapConversationRow, mapMessageRow, otherParticipantId, withMeta } from './messaging-shared';
 
@@ -1020,13 +1019,9 @@ export const supabaseDb = {
           userId,
           otherUser: profile ? mapProfile(profile as DbProfile) : null,
           listingTitle: listing?.title,
-          listingPhotoUrl: listing
-            ? resolveListingCoverUrl(
-                photos ?? [],
-                listing.category_id,
-                listing.subcategory_id
-              )
-            : null,
+          listingPhotoUrl: photos?.[0]?.url ?? null,
+          listingCategoryId: listing?.category_id ?? null,
+          listingSubcategoryId: listing?.subcategory_id ?? null,
           lastMessageBody: lastMsg?.body ?? null,
           lastMessageSenderId: lastMsg?.sender_id ?? null,
         });
@@ -1076,9 +1071,9 @@ export const supabaseDb = {
       userId,
       otherUser: profile ? mapProfile(profile as DbProfile) : null,
       listingTitle: listing?.title,
-      listingPhotoUrl: listing
-        ? resolveListingCoverUrl(photos ?? [], listing.category_id, listing.subcategory_id)
-        : null,
+      listingPhotoUrl: photos?.[0]?.url ?? null,
+      listingCategoryId: listing?.category_id ?? null,
+      listingSubcategoryId: listing?.subcategory_id ?? null,
       lastMessageBody: lastMsg?.body ?? null,
       lastMessageSenderId: lastMsg?.sender_id ?? null,
     });

@@ -26,7 +26,7 @@ import type { ListingStatus, ListingWithRelations } from '@/lib/types';
 export default function ListingDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user, can } = useAuth();
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const [listing, setListing] = useState<ListingWithRelations | null>(null);
   const [favorite, setFavorite] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -66,7 +66,12 @@ export default function ListingDetailScreen() {
   }
 
   const isOwner = user?.id === listing.sellerId;
-  const photo = resolveListingCoverUrl(listing.photos, listing.categoryId, listing.subcategoryId);
+  const photo = resolveListingCoverUrl(
+    listing.photos,
+    listing.categoryId,
+    listing.subcategoryId,
+    locale
+  );
   const canReactivate = listing.status !== 'active' && listing.status !== 'removed';
   const canMarkReserved = listing.status === 'active';
   const canMarkDone = listing.status === 'active' || listing.status === 'reserved';
