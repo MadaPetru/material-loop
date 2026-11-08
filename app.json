@@ -8,7 +8,11 @@
     "scheme": "materialloop",
     "userInterfaceStyle": "light",
     "primaryColor": "#2F5D3A",
-    "platforms": ["ios", "android", "web"],
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -20,7 +24,11 @@
         "CFBundleAllowMixedLocalizations": true,
         "NSPhotoLibraryUsageDescription": "MaterialLoop uses your photo library so you can add images to listings.",
         "NSCameraUsageDescription": "MaterialLoop uses the camera so you can take photos for listings.",
-        "NSLocationWhenInUseUsageDescription": "MaterialLoop uses your location to show materials near you."
+        "NSLocationWhenInUseUsageDescription": "MaterialLoop uses your location to show materials near you.",
+        "CFBundleLocalizations": [
+          "en",
+          "ro"
+        ]
       }
     },
     "android": {
@@ -47,12 +55,16 @@
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.CAMERA",
         "android.permission.READ_MEDIA_IMAGES",
-        "android.permission.READ_EXTERNAL_STORAGE"
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO"
       ],
       "intentFilters": [
         {
           "action": "VIEW",
-          "category": ["BROWSABLE", "DEFAULT"],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ],
           "data": [
             {
               "scheme": "materialloop"
@@ -106,8 +118,14 @@
         "expo-localization",
         {
           "supportedLocales": {
-            "ios": ["en", "ro"],
-            "android": ["en", "ro"]
+            "ios": [
+              "en",
+              "ro"
+            ],
+            "android": [
+              "en",
+              "ro"
+            ]
           }
         }
       ]
@@ -119,9 +137,15 @@
       "privacyPolicyUrl": "https://materialloop.website/legal/privacy",
       "termsOfServiceUrl": "https://materialloop.website/legal/terms",
       "supportEmail": "mada.petru@digitalexplorer.ro",
+      "router": {
+        "asyncRoutes": {
+          "web": false
+        }
+      },
       "eas": {
-        "projectId": "replace-when-eas-configured"
+        "projectId": "b1caaa3a-1c44-45e6-bd2f-1de4d053bb4e"
       }
-    }
+    },
+    "owner": "mada-petru"
   }
 }
