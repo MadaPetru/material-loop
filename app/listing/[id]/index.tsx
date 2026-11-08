@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { Button } from '@/components/ui/Button';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { formatCityCounty } from '@/data/romania';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocale } from '@/contexts/LocaleContext';
@@ -19,6 +20,7 @@ import { marketplace } from '@/lib/api/marketplace';
 import { resolveListingCoverUrl } from '@/lib/defaultListingPhoto';
 import { conditionLabels, formatPrice, formatQuantity, statusLabels } from '@/lib/labels';
 import { colors, fonts, radii, spacing } from '@/lib/theme';
+import { toUserError } from '@/lib/userErrors';
 import type { ListingStatus, ListingWithRelations } from '@/lib/types';
 
 export default function ListingDetailScreen() {
@@ -29,6 +31,7 @@ export default function ListingDetailScreen() {
   const [favorite, setFavorite] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busyStatus, setBusyStatus] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -90,11 +93,17 @@ export default function ListingDetailScreen() {
     if (!user || busyStatus) return;
     setBusyStatus(true);
     try {
+      if (status === 'removed') {
+        await marketplace.deleteListing(listing.id, user.id);
+        setDeleteConfirmOpen(false);
+        router.back();
+        return;
+      }
       await marketplace.setListingStatus(listing.id, user.id, status);
       const refreshed = await marketplace.getListing(listing.id);
       setListing(refreshed);
     } catch (e) {
-      Alert.alert(t('common.error'), e instanceof Error ? e.message : t('errors.genericRetry'));
+      Alert.alert(t('common.error'), toUserError(e, t('errors.genericRetry')));
     } finally {
       setBusyStatus(false);
     }
@@ -276,16 +285,7 @@ export default function ListingDetailScreen() {
               <Pressable
                 accessibilityRole="button"
                 disabled={busyStatus}
-                onPress={() => {
-                  Alert.alert(t('listing.deleteConfirmTitle'), t('listing.deleteConfirmBody'), [
-                    { text: t('common.cancel'), style: 'cancel' },
-                    {
-                      text: t('listing.delete'),
-                      style: 'destructive',
-                      onPress: () => markStatus('removed'),
-                    },
-                  ]);
-                }}
+                onPress={() => setDeleteConfirmOpen(true)}
                 style={styles.deleteLink}
               >
                 <Text style={styles.deleteLinkText}>{t('listing.delete')}</Text>
@@ -294,6 +294,22 @@ export default function ListingDetailScreen() {
           </View>
         )}
       </View>
+
+      <ConfirmDialog
+        visible={deleteConfirmOpen}
+        title={t('listing.deleteConfirmTitle')}
+        message={t('listing.deleteConfirmBody')}
+        confirmLabel={busyStatus ? t('common.loading') : t('listing.delete')}
+        cancelLabel={t('common.cancel')}
+        destructive
+        busy={busyStatus}
+        onCancel={() => {
+          if (!busyStatus) setDeleteConfirmOpen(false);
+        }}
+        onConfirm={() => {
+          void markStatus('removed');
+        }}
+      />
     </ScrollView>
   );
 }
