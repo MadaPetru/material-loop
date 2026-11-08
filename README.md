@@ -171,12 +171,14 @@ După ce le configurezi în Supabase, spune-mi doar: „Google e activ în Supab
      - `https://materialloop.website/**`
      - `https://www.materialloop.website/**`
      - `materialloop://**`
-     - `exp://**` (doar pentru teste în Expo Go)
+     - `exp://**` (obligatoriu pentru Google login în Expo Go)
+
+   Fără `exp://**`, pe telefon Google se deschide dar app-ul rămâne pe „Se deschide Google…” (redirect-ul înapoi e blocat).
 
    App-ul trimite `redirectTo`:
    - Web: `{origin}/login` (ex. `http://localhost:8081/login`, `https://materialloop.website/login`)
    - Native (build): `materialloop://login`
-   - Expo Go: URI `exp://…/--/login` generat de `makeRedirectUri`
+   - Expo Go: URI `exp://IP:8081/--/login` (vezi și log-ul `[auth] Google OAuth redirectTo =` în Metro)
 
 6. **(Opțional, pentru iOS/Android store)**  
    Creează și clienți OAuth **iOS** / **Android** în Google Cloud, cu bundle id / package name din `app.json`, apoi configurează-le în Expo / Supabase conform [docs Supabase Google](https://supabase.com/docs/guides/auth/social-login/auth-google).

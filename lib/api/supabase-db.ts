@@ -1,9 +1,13 @@
 import { Platform } from 'react-native';
-import * as WebBrowser from 'expo-web-browser';
 import type { User } from '@supabase/supabase-js';
 import { CATEGORIES, SUBCATEGORIES } from '@/data/categories';
 import { COUNTRY_RO, COUNTIES, CITIES, getCity } from '@/data/romania';
-import { createSessionFromUrl, getOAuthRedirectTo, oauthErrorMessage } from '@/lib/auth/oauth';
+import {
+  createSessionFromUrl,
+  getOAuthRedirectTo,
+  oauthErrorMessage,
+  openOAuthSession,
+} from '@/lib/auth/oauth';
 import { approximateCoords, daysFromNow, haversineKm } from '@/lib/geo';
 import { LISTING_EXPIRY_DAYS } from '@/lib/config';
 import {
@@ -1219,6 +1223,10 @@ export const supabaseDb = {
       return null;
     }
 
+    if (__DEV__) {
+      console.log('[auth] Google OAuth redirectTo =', redirectTo);
+    }
+
     const { data, error } = await sb.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -1232,15 +1240,8 @@ export const supabaseDb = {
       throw new Error('Nu s-a putut porni autentificarea Google.');
     }
 
-    const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
-    if (result.type === 'cancel' || result.type === 'dismiss') {
-      throw new Error('Autentificarea Google a fost anulată.');
-    }
-    if (result.type !== 'success' || !('url' in result) || !result.url) {
-      throw new Error('Autentificarea Google a eșuat.');
-    }
-
-    await createSessionFromUrl(result.url);
+    const callbackUrl = await openOAuthSession(data.url, redirectTo);
+    await createSessionFromUrl(callbackUrl);
     const profile = await this.getSession();
     if (!profile) {
       throw new Error('Sesiunea Google nu a putut fi creată.');

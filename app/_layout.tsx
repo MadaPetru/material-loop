@@ -14,6 +14,7 @@ import { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
+import '@/lib/cryptoPolyfill';
 import { CookieConsentBanner } from '@/components/legal/CookieConsentBanner';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ConsentProvider } from '@/contexts/ConsentContext';
