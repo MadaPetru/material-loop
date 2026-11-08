@@ -35,10 +35,31 @@ Cont admin demo: `admin@materialloop.ro` / `demo1234` (tab **Admin**)
 
 Înainte de lansare publică:
 
-1. Completează identitatea operatorului în `lib/legal/operator.ts` (`companyName`, `cui`, `address`). Email confidențialitate: `contact@materialloop.ro` (ajustează dacă e nevoie).
-2. Verifică paginile `/legal/privacy`, `/legal/cookies`, `/legal/terms`, `/legal/safety` (EN + RO).
+1. Completează identitatea operatorului în `lib/legal/operator.ts` (`companyName`, `cui`, `address`).
+2. Verifică paginile `/legal/privacy`, `/legal/cookies`, `/legal/terms`, `/legal/safety` (EN + RO) pe web: `https://materialloop.website/legal/privacy`.
 3. Bannerul de cookie-uri apare la prima vizită; preferințele se pot redeschide din Profil sau din Politica de cookie-uri.
 4. Ștergerea contului există deja în Profil (cerință store / GDPR).
+
+## Publicare Google Play (EAS)
+
+Config: `eas.json` (profil `production` → `.aab`) + `app.json` (`ro.materialloop.app`).
+
+```bash
+npx eas-cli login
+npx eas-cli init                 # setează projectId real în app.json
+npx eas-cli build --platform android --profile production
+npx eas-cli submit --platform android --latest
+```
+
+Checklist Play Console (în afara repo-ului):
+
+1. Cont developer verificat + app creată cu package `ro.materialloop.app`
+2. Store listing: titlu, descriere scurtă/lungă, screenshot-uri telefon, icon 512
+3. Privacy policy URL: `https://materialloop.website/legal/privacy`
+4. Data safety: location, photos, account info (app-collected, not sold)
+5. Ads: **No** (AD_ID e blocat în `app.json`)
+6. Content rating + target audience
+7. Prima încărcare pe track **Internal testing** / draft (vezi `eas.json` → submit.production)
 
 ## Conectare Supabase
 
