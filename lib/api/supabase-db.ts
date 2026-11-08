@@ -963,7 +963,7 @@ export const supabaseDb = {
             client().from('profiles').select('*').eq('id', otherId).maybeSingle(),
             client()
               .from('messages')
-              .select('body')
+              .select('body, sender_id')
               .eq('conversation_id', conversation.id)
               .order('created_at', { ascending: false })
               .limit(1)
@@ -981,9 +981,15 @@ export const supabaseDb = {
           listingTitle: listing?.title,
           listingPhotoUrl: photos?.[0]?.url ?? null,
           lastMessageBody: lastMsg?.body ?? null,
+          lastMessageSenderId: lastMsg?.sender_id ?? null,
         });
       })
     );
+  },
+
+  async countUnreadConversations(userId: string): Promise<number> {
+    const rows = await this.listConversations(userId);
+    return rows.filter((c) => c.unread).length;
   },
 
   async getConversation(conversationId: string, userId: string) {
@@ -1003,7 +1009,7 @@ export const supabaseDb = {
         client().from('profiles').select('*').eq('id', otherId).maybeSingle(),
         client()
           .from('messages')
-          .select('body')
+          .select('body, sender_id')
           .eq('conversation_id', conversation.id)
           .order('created_at', { ascending: false })
           .limit(1)
@@ -1021,6 +1027,7 @@ export const supabaseDb = {
       listingTitle: listing?.title,
       listingPhotoUrl: photos?.[0]?.url ?? null,
       lastMessageBody: lastMsg?.body ?? null,
+      lastMessageSenderId: lastMsg?.sender_id ?? null,
     });
   },
 
@@ -1037,6 +1044,26 @@ export const supabaseDb = {
       .order('created_at', { ascending: true });
     if (error) throw new Error(error.message);
     return (data ?? []).map(mapMessageRow);
+  },
+
+  async markConversationRead(conversationId: string, userId: string) {
+    const me = await this.getSession();
+    if (me?.id !== userId) throw new Error('Autentifică-te din nou.');
+    assertEntitlement(me, 'messages.read');
+    const conversation = await this.getConversation(conversationId, userId);
+    if (!conversation) throw new Error('Conversația nu a fost găsită.');
+
+    const now = new Date().toISOString();
+    const patch =
+      conversation.buyerId === userId
+        ? { buyer_last_read_at: now }
+        : { seller_last_read_at: now };
+
+    const { error } = await client()
+      .from('conversations')
+      .update(patch)
+      .eq('id', conversationId);
+    if (error) throw new Error(error.message);
   },
 
   async sendMessage(conversationId: string, senderId: string, body: string) {
@@ -1059,9 +1086,15 @@ export const supabaseDb = {
       .single();
     if (error) throw new Error(error.message);
 
+    const now = new Date().toISOString();
+    const readPatch =
+      conversation.buyerId === senderId
+        ? { buyer_last_read_at: now }
+        : { seller_last_read_at: now };
+
     await client()
       .from('conversations')
-      .update({ last_message_at: new Date().toISOString() })
+      .update({ last_message_at: now, ...readPatch })
       .eq('id', conversationId);
 
     return mapMessageRow(data);
@@ -1089,12 +1122,14 @@ export const supabaseDb = {
 
     let conversationId = existing?.id ?? null;
     if (!conversationId) {
+      const now = new Date().toISOString();
       const { data, error } = await client()
         .from('conversations')
         .insert({
           listing_id: params.listingId,
           buyer_id: params.buyerId,
           seller_id: params.sellerId,
+          buyer_last_read_at: now,
         })
         .select('*')
         .single();

@@ -3,12 +3,14 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { LanguageSelector } from '@/components/ui/LanguageSelector';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocale } from '@/contexts/LocaleContext';
+import { useUnreadMessages } from '@/contexts/UnreadMessagesContext';
 import { colors, fonts, radii, spacing } from '@/lib/theme';
 
 export function DesktopNav() {
   const pathname = usePathname();
   const { user, can } = useAuth();
   const { t } = useLocale();
+  const { unreadCount } = useUnreadMessages();
 
   const links = [
     { href: '/', label: t('nav.home'), match: (p: string) => p === '/' || p === '/index' },
@@ -20,7 +22,12 @@ export function DesktopNav() {
         p.startsWith('/sell') || p.startsWith('/listing/create') || p.startsWith('/my-listings'),
     },
     { href: '/favorites', label: t('nav.favorites'), match: (p: string) => p.startsWith('/favorites') },
-    { href: '/messages', label: t('nav.messages'), match: (p: string) => p.startsWith('/messages') },
+    {
+      href: '/messages',
+      label: t('nav.messages'),
+      match: (p: string) => p.startsWith('/messages'),
+      badge: unreadCount,
+    },
     { href: '/contact', label: t('nav.contact'), match: (p: string) => p.startsWith('/contact') },
     ...(can('admin.panel') ||
     can('marketing.panel') ||
@@ -50,6 +57,7 @@ export function DesktopNav() {
       <View style={styles.links}>
         {links.map((link) => {
           const active = link.match(pathname);
+          const badge = 'badge' in link && typeof link.badge === 'number' ? link.badge : 0;
           return (
             <Pressable
               key={link.href}
@@ -58,6 +66,11 @@ export function DesktopNav() {
               onPress={() => router.push(link.href as '/')}
             >
               <Text style={[styles.linkText, active && styles.linkTextActive]}>{link.label}</Text>
+              {badge > 0 ? (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{badge > 99 ? '99+' : badge}</Text>
+                </View>
+              ) : null}
             </Pressable>
           );
         })}
@@ -109,6 +122,9 @@ const styles = StyleSheet.create({
   },
   links: { flex: 1, flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
   link: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: radii.pill,
@@ -116,6 +132,21 @@ const styles = StyleSheet.create({
   linkActive: { backgroundColor: colors.brandSoft },
   linkText: { fontFamily: fonts.sansMedium, color: colors.inkMuted, fontSize: 14 },
   linkTextActive: { color: colors.brandDark, fontFamily: fonts.sansBold },
+  badge: {
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 5,
+    borderRadius: radii.pill,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: {
+    fontFamily: fonts.sansBold,
+    color: colors.white,
+    fontSize: 11,
+    lineHeight: 14,
+  },
   right: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   user: {
     fontFamily: fonts.sansMedium,

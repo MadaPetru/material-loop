@@ -73,9 +73,12 @@ export const marketplace = {
   isFavorite: (userId: string, listingId: string) => api.isFavorite(userId, listingId),
   toggleFavorite: (userId: string, listingId: string) => api.toggleFavorite(userId, listingId),
   listConversations: (userId: string) => api.listConversations(userId),
+  countUnreadConversations: (userId: string) => api.countUnreadConversations(userId),
   getConversation: (conversationId: string, userId: string) =>
     api.getConversation(conversationId, userId),
   getMessages: (conversationId: string, userId: string) => api.getMessages(conversationId, userId),
+  markConversationRead: (conversationId: string, userId: string) =>
+    api.markConversationRead(conversationId, userId),
   sendMessage: (conversationId: string, senderId: string, body: string) =>
     api.sendMessage(conversationId, senderId, body),
   startConversation: (params: {

@@ -77,10 +77,12 @@ export type TranslationDict = {
     description: string;
     descriptionOptional: string;
     category: string;
+    categoryRequired: string;
     subcategory: string;
     brand: string;
     model: string;
     condition: string;
+    conditionRequired: string;
     quantity: string;
     unit: string;
     free: string;
@@ -104,6 +106,8 @@ export type TranslationDict = {
     login: string;
     missingFields: string;
     fieldTitle: string;
+    fieldCategory: string;
+    fieldCondition: string;
     fieldLocation: string;
   };
   editListing: {

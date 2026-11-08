@@ -17,6 +17,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorBanner } from '@/components/ui/ErrorBanner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocale } from '@/contexts/LocaleContext';
+import { useUnreadMessages } from '@/contexts/UnreadMessagesContext';
 import { marketplace } from '@/lib/api/marketplace';
 import { colors, fonts, layout, radii, spacing } from '@/lib/theme';
 import { useResponsive } from '@/lib/useResponsive';
@@ -26,6 +27,7 @@ import type { ChatMessage, ConversationWithMeta } from '@/lib/types';
 export default function MessagesScreen() {
   const { user } = useAuth();
   const { t, locale } = useLocale();
+  const { refreshUnread } = useUnreadMessages();
   const { isDesktop, contentPad } = useResponsive();
   const params = useLocalSearchParams<{ conversationId?: string }>();
   const [conversations, setConversations] = useState<ConversationWithMeta[]>([]);
@@ -39,6 +41,8 @@ export default function MessagesScreen() {
   const [error, setError] = useState<string | null>(null);
   const [convQuery, setConvQuery] = useState('');
   const listRef = useRef<FlatList<ChatMessage>>(null);
+  const messagesRef = useRef<ChatMessage[]>([]);
+  const selectedIdRef = useRef<string | null>(null);
 
   const filteredConversations = useMemo(() => {
     const q = convQuery.trim().toLowerCase();
@@ -51,22 +55,42 @@ export default function MessagesScreen() {
     });
   }, [conversations, convQuery]);
 
-  const loadConversations = useCallback(async () => {
-    if (!user) return;
-    setLoadingList(true);
-    try {
-      const rows = await marketplace.listConversations(user.id);
-      setConversations(rows);
-    } catch (e) {
-      setError(toUserError(e));
-    } finally {
-      setLoadingList(false);
+  const applyMessages = useCallback((msgs: ChatMessage[], opts?: { scroll?: boolean; animated?: boolean }) => {
+    messagesRef.current = msgs;
+    setMessages(msgs);
+    if (opts?.scroll) {
+      setTimeout(
+        () => listRef.current?.scrollToEnd({ animated: opts.animated ?? false }),
+        50
+      );
     }
-  }, [user]);
+  }, []);
+
+  const loadConversations = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (!user) return;
+      const silent = !!opts?.silent;
+      if (!silent) setLoadingList(true);
+      try {
+        const rows = await marketplace.listConversations(user.id);
+        const openId = selectedIdRef.current;
+        setConversations(
+          openId ? rows.map((c) => (c.id === openId ? { ...c, unread: false } : c)) : rows
+        );
+        await refreshUnread();
+      } catch (e) {
+        if (!silent) setError(toUserError(e));
+      } finally {
+        if (!silent) setLoadingList(false);
+      }
+    },
+    [user, refreshUnread]
+  );
 
   const openConversation = useCallback(
     async (id: string) => {
       if (!user) return;
+      selectedIdRef.current = id;
       setSelectedId(id);
       setLoadingThread(true);
       setError(null);
@@ -76,15 +100,19 @@ export default function MessagesScreen() {
           marketplace.getMessages(id, user.id),
         ]);
         setSelected(meta);
-        setMessages(msgs);
-        setTimeout(() => listRef.current?.scrollToEnd({ animated: false }), 50);
+        applyMessages(msgs, { scroll: true, animated: false });
+        setConversations((prev) =>
+          prev.map((c) => (c.id === id ? { ...c, unread: false } : c))
+        );
+        await marketplace.markConversationRead(id, user.id);
+        await refreshUnread();
       } catch (e) {
         setError(toUserError(e));
       } finally {
         setLoadingThread(false);
       }
     },
-    [user]
+    [user, refreshUnread, applyMessages]
   );
 
   useEffect(() => {
@@ -102,16 +130,66 @@ export default function MessagesScreen() {
     }
   }, [params.conversationId, conversations, isDesktop, selectedId, openConversation]);
 
+  // Keep the open thread and conversation list fresh without requiring a re-click.
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+
+    const syncOpenThread = async () => {
+      const openId = selectedIdRef.current;
+      if (!openId) {
+        await loadConversations({ silent: true });
+        return;
+      }
+      try {
+        const [msgs, rows] = await Promise.all([
+          marketplace.getMessages(openId, user.id),
+          marketplace.listConversations(user.id),
+        ]);
+        if (cancelled || selectedIdRef.current !== openId) return;
+
+        const prev = messagesRef.current;
+        const prevIds = new Set(prev.map((m) => m.id));
+        const changed =
+          prev.length !== msgs.length || prev[prev.length - 1]?.id !== msgs[msgs.length - 1]?.id;
+        const newFromOther = msgs.filter((m) => m.senderId !== user.id && !prevIds.has(m.id));
+
+        if (changed) {
+          applyMessages(msgs, { scroll: newFromOther.length > 0, animated: true });
+        }
+
+        setConversations(rows.map((c) => (c.id === openId ? { ...c, unread: false } : c)));
+
+        if (newFromOther.length > 0) {
+          await marketplace.markConversationRead(openId, user.id);
+          if (!cancelled) await refreshUnread();
+        } else {
+          await refreshUnread();
+        }
+      } catch {
+        /* keep current thread */
+      }
+    };
+
+    const interval = setInterval(() => {
+      syncOpenThread();
+    }, 4000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [user, loadConversations, applyMessages, refreshUnread]);
+
   const send = async () => {
     if (!user || !selectedId || !draft.trim() || sending) return;
     setSending(true);
     setError(null);
     try {
       const msg = await marketplace.sendMessage(selectedId, user.id, draft);
-      setMessages((prev) => [...prev, msg]);
+      applyMessages([...messagesRef.current, msg], { scroll: true, animated: true });
       setDraft('');
-      await loadConversations();
-      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 50);
+      await loadConversations({ silent: true });
     } catch (e) {
       setError(toUserError(e));
     } finally {
@@ -175,10 +253,15 @@ export default function MessagesScreen() {
               }
               renderItem={({ item }) => {
                 const active = item.id === selectedId;
+                const unread = !!item.unread;
                 return (
                   <Pressable
                     onPress={() => openConversation(item.id)}
-                    style={[styles.convRow, active && styles.convRowActive]}
+                    style={[
+                      styles.convRow,
+                      active && styles.convRowActive,
+                      unread && !active && styles.convRowUnread,
+                    ]}
                   >
                     <View style={styles.avatar}>
                       {item.listingPhotoUrl ? (
@@ -194,13 +277,22 @@ export default function MessagesScreen() {
                       )}
                     </View>
                     <View style={styles.convBody}>
-                      <Text style={styles.convName} numberOfLines={1}>
-                        {item.otherUser?.displayName ?? t('messages.userFallback')}
-                      </Text>
+                      <View style={styles.convTitleRow}>
+                        <Text
+                          style={[styles.convName, unread && styles.convNameUnread]}
+                          numberOfLines={1}
+                        >
+                          {item.otherUser?.displayName ?? t('messages.userFallback')}
+                        </Text>
+                        {unread ? <View style={styles.unreadDot} /> : null}
+                      </View>
                       <Text style={styles.convListing} numberOfLines={1}>
                         {item.listingTitle ?? t('messages.listingFallback')}
                       </Text>
-                      <Text style={styles.convPreview} numberOfLines={1}>
+                      <Text
+                        style={[styles.convPreview, unread && styles.convPreviewUnread]}
+                        numberOfLines={1}
+                      >
                         {item.lastMessageBody ?? t('messages.noMessagesYet')}
                       </Text>
                     </View>
@@ -226,7 +318,13 @@ export default function MessagesScreen() {
             <>
               <View style={styles.threadHeader}>
                 {!isDesktop ? (
-                  <Pressable onPress={() => setSelectedId(null)} style={styles.backBtn}>
+                  <Pressable
+                    onPress={() => {
+                      selectedIdRef.current = null;
+                      setSelectedId(null);
+                    }}
+                    style={styles.backBtn}
+                  >
                     <Text style={styles.backText}>{t('common.back')}</Text>
                   </Pressable>
                 ) : null}
@@ -354,6 +452,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.line,
   },
   convRowActive: { backgroundColor: colors.brandSoft },
+  convRowUnread: { backgroundColor: colors.accentSoft },
   avatar: {
     width: 48,
     height: 48,
@@ -366,9 +465,22 @@ const styles = StyleSheet.create({
   avatarImg: { width: '100%', height: '100%' },
   avatarLetter: { fontFamily: fonts.sansBold, color: colors.ink, fontSize: 18 },
   convBody: { flex: 1, gap: 2 },
-  convName: { fontFamily: fonts.sansBold, color: colors.ink, fontSize: 15 },
+  convTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  convName: { flex: 1, fontFamily: fonts.sansBold, color: colors.ink, fontSize: 15 },
+  convNameUnread: { color: colors.ink },
+  unreadDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.accent,
+  },
   convListing: { fontFamily: fonts.sansMedium, color: colors.brand, fontSize: 13 },
   convPreview: { fontFamily: fonts.sans, color: colors.inkMuted, fontSize: 13 },
+  convPreviewUnread: { fontFamily: fonts.sansMedium, color: colors.ink },
   thread: { flex: 1, backgroundColor: colors.bg },
   threadDesktop: {
     borderRadius: radii.xl,

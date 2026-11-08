@@ -7,6 +7,8 @@ export function mapConversationRow(row: {
   seller_id: string;
   last_message_at: string;
   created_at: string;
+  buyer_last_read_at?: string | null;
+  seller_last_read_at?: string | null;
 }): Conversation {
   return {
     id: row.id,
@@ -15,6 +17,8 @@ export function mapConversationRow(row: {
     sellerId: row.seller_id,
     lastMessageAt: row.last_message_at,
     createdAt: row.created_at,
+    buyerLastReadAt: row.buyer_last_read_at ?? null,
+    sellerLastReadAt: row.seller_last_read_at ?? null,
   };
 }
 
@@ -38,6 +42,23 @@ export function otherParticipantId(conversation: Conversation, userId: string) {
   return conversation.buyerId === userId ? conversation.sellerId : conversation.buyerId;
 }
 
+export function lastReadAtFor(conversation: Conversation, userId: string) {
+  return conversation.buyerId === userId
+    ? conversation.buyerLastReadAt
+    : conversation.sellerLastReadAt;
+}
+
+export function isConversationUnread(
+  conversation: Conversation,
+  userId: string,
+  lastMessageSenderId: string | null | undefined
+) {
+  if (!lastMessageSenderId || lastMessageSenderId === userId) return false;
+  const lastRead = lastReadAtFor(conversation, userId);
+  if (!lastRead) return true;
+  return conversation.lastMessageAt > lastRead;
+}
+
 export function withMeta(
   conversation: Conversation,
   opts: {
@@ -46,13 +67,17 @@ export function withMeta(
     listingTitle?: string;
     listingPhotoUrl?: string | null;
     lastMessageBody?: string | null;
+    lastMessageSenderId?: string | null;
   }
 ): ConversationWithMeta {
+  const lastMessageSenderId = opts.lastMessageSenderId ?? null;
   return {
     ...conversation,
     otherUser: opts.otherUser ?? null,
     listingTitle: opts.listingTitle,
     listingPhotoUrl: opts.listingPhotoUrl ?? null,
     lastMessageBody: opts.lastMessageBody ?? null,
+    lastMessageSenderId,
+    unread: isConversationUnread(conversation, opts.userId, lastMessageSenderId),
   };
 }

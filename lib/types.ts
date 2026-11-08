@@ -194,6 +194,8 @@ export interface Conversation {
   sellerId: string;
   lastMessageAt: string;
   createdAt: string;
+  buyerLastReadAt: string | null;
+  sellerLastReadAt: string | null;
 }
 
 export interface ChatMessage {
@@ -209,6 +211,8 @@ export interface ConversationWithMeta extends Conversation {
   listingPhotoUrl?: string | null;
   otherUser?: Profile | null;
   lastMessageBody?: string | null;
+  lastMessageSenderId?: string | null;
+  unread?: boolean;
 }
 
 export interface SearchFilters {

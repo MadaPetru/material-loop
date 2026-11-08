@@ -6,6 +6,7 @@ import { DesktopNav } from '@/components/layout/DesktopNav';
 import { LanguageSelector } from '@/components/ui/LanguageSelector';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocale } from '@/contexts/LocaleContext';
+import { useUnreadMessages } from '@/contexts/UnreadMessagesContext';
 import { colors, fonts } from '@/lib/theme';
 import { useResponsive } from '@/lib/useResponsive';
 
@@ -20,6 +21,7 @@ export default function TabLayout() {
   const { isDesktop, isTablet } = useResponsive();
   const { t, locale } = useLocale();
   const { can, refresh, user } = useAuth();
+  const { unreadCount } = useUnreadMessages();
   const showAdmin =
     can('admin.panel') ||
     can('marketing.panel') ||
@@ -27,6 +29,8 @@ export default function TabLayout() {
     can('admin.roles.read') ||
     can('marketing.ads.read');
   const hideTabBar = isDesktop;
+  const messagesBadge =
+    unreadCount > 0 ? (unreadCount > 99 ? '99+' : unreadCount) : undefined;
 
   // Reload profile (roles → entitlements) so Admin tab appears after DB/admin changes.
   useEffect(() => {
@@ -119,6 +123,16 @@ export default function TabLayout() {
             title: t('nav.messages'),
             href: '/messages',
             headerShown: !isDesktop,
+            tabBarBadge: messagesBadge,
+            tabBarBadgeStyle: {
+              backgroundColor: colors.accent,
+              color: colors.white,
+              fontSize: 11,
+              fontFamily: fonts.sansBold,
+              minWidth: 18,
+              height: 18,
+              lineHeight: 16,
+            },
             tabBarIcon: ({ color }) => <TabIcon name="comments" color={String(color)} />,
           }}
         />

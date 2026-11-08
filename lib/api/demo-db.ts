@@ -40,6 +40,14 @@ import type {
 } from '@/lib/types';
 import { otherParticipantId, withMeta } from './messaging-shared';
 
+function normalizeConversation(c: Conversation): Conversation {
+  return {
+    ...c,
+    buyerLastReadAt: c.buyerLastReadAt ?? null,
+    sellerLastReadAt: c.sellerLastReadAt ?? null,
+  };
+}
+
 const STORAGE_KEY = 'materialloop.demo.v8';
 
 /** Demo OTP always accepts this code (and any 6 digits after send). */
@@ -121,7 +129,7 @@ async function load() {
           listings: parsed.listings?.length ? parsed.listings : defaults.listings,
           photos: parsed.photos?.length ? parsed.photos : defaults.photos,
           favorites: parsed.favorites ?? [],
-          conversations: parsed.conversations ?? [],
+          conversations: (parsed.conversations ?? []).map(normalizeConversation),
           messages: parsed.messages ?? [],
           roles,
           ads: parsed.ads ?? [],
@@ -770,6 +778,7 @@ export const demoDb = {
     if (me?.id !== userId) throw new Error('Autentifică-te din nou.');
     assertEntitlement(me, 'messages.read');
     const mine = state.conversations
+      .map(normalizeConversation)
       .filter((c) => c.buyerId === userId || c.sellerId === userId)
       .sort((a, b) => b.lastMessageAt.localeCompare(a.lastMessageAt));
 
@@ -785,14 +794,21 @@ export const demoDb = {
         listingTitle: listing?.title,
         listingPhotoUrl: state.photos.find((p) => p.listingId === c.listingId)?.url ?? null,
         lastMessageBody: last?.body ?? null,
+        lastMessageSenderId: last?.senderId ?? null,
       });
     });
   },
 
+  async countUnreadConversations(userId: string): Promise<number> {
+    const rows = await this.listConversations(userId);
+    return rows.filter((c) => c.unread).length;
+  },
+
   async getConversation(conversationId: string, userId: string) {
     const state = await load();
-    const c = state.conversations.find((x) => x.id === conversationId);
-    if (!c || (c.buyerId !== userId && c.sellerId !== userId)) return null;
+    const found = state.conversations.find((x) => x.id === conversationId);
+    if (!found || (found.buyerId !== userId && found.sellerId !== userId)) return null;
+    const c = normalizeConversation(found);
     const listing = state.listings.find((l) => l.id === c.listingId);
     const otherId = otherParticipantId(c, userId);
     const last = state.messages
@@ -804,6 +820,7 @@ export const demoDb = {
       listingTitle: listing?.title,
       listingPhotoUrl: state.photos.find((p) => p.listingId === c.listingId)?.url ?? null,
       lastMessageBody: last?.body ?? null,
+      lastMessageSenderId: last?.senderId ?? null,
     });
   },
 
@@ -819,6 +836,21 @@ export const demoDb = {
     return state.messages
       .filter((m) => m.conversationId === conversationId)
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  },
+
+  async markConversationRead(conversationId: string, userId: string) {
+    const state = await load();
+    const me = state.profiles.find((p) => p.id === state.sessionUserId) ?? null;
+    if (me?.id !== userId) throw new Error('Autentifică-te din nou.');
+    assertEntitlement(me, 'messages.read');
+    const c = state.conversations.find((x) => x.id === conversationId);
+    if (!c || (c.buyerId !== userId && c.sellerId !== userId)) {
+      throw new Error('Conversația nu a fost găsită.');
+    }
+    const now = new Date().toISOString();
+    if (c.buyerId === userId) c.buyerLastReadAt = now;
+    else c.sellerLastReadAt = now;
+    await save();
   },
 
   async sendMessage(conversationId: string, senderId: string, body: string) {
@@ -842,6 +874,8 @@ export const demoDb = {
     };
     state.messages.push(message);
     c.lastMessageAt = now;
+    if (c.buyerId === senderId) c.buyerLastReadAt = now;
+    else c.sellerLastReadAt = now;
     await save();
     return message;
   },
@@ -874,6 +908,8 @@ export const demoDb = {
         sellerId: params.sellerId,
         lastMessageAt: now,
         createdAt: now,
+        buyerLastReadAt: now,
+        sellerLastReadAt: null,
       };
       state.conversations.unshift(conversation);
     }

@@ -18,6 +18,7 @@ import { CookieConsentBanner } from '@/components/legal/CookieConsentBanner';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ConsentProvider } from '@/contexts/ConsentContext';
 import { LocaleProvider, useLocale } from '@/contexts/LocaleContext';
+import { UnreadMessagesProvider } from '@/contexts/UnreadMessagesContext';
 import '@/lib/auth/oauth';
 import { colors } from '@/lib/theme';
 
@@ -53,11 +54,11 @@ export default function RootLayout() {
       <LocaleProvider>
         <ConsentProvider>
           <AuthProvider>
-            <>
+            <UnreadMessagesProvider>
               <StatusBar style="dark" />
               <RootNavigator />
               <CookieConsentBanner />
-            </>
+            </UnreadMessagesProvider>
           </AuthProvider>
         </ConsentProvider>
       </LocaleProvider>

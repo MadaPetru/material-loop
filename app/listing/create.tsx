@@ -29,22 +29,23 @@ import { toUserError } from '@/lib/userErrors';
 import type { MeasurementUnit, ProductCondition } from '@/lib/types';
 
 const CONDITIONS = Object.keys(conditionLabels) as ProductCondition[];
-const UNITS = Object.keys(unitLabels) as MeasurementUnit[];
+const UNITS: MeasurementUnit[] = [
+  'other',
+  ...(Object.keys(unitLabels) as MeasurementUnit[]).filter((u) => u !== 'other'),
+];
 
 export default function CreateListingScreen() {
   const { user, can } = useAuth();
   const { t } = useLocale();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [categoryId, setCategoryId] = useState(CATEGORIES[0].id);
-  const [subcategoryId, setSubcategoryId] = useState<string | null>(
-    subcategoriesFor(CATEGORIES[0].id)[0]?.id ?? null
-  );
+  const [categoryId, setCategoryId] = useState<string | null>(null);
+  const [subcategoryId, setSubcategoryId] = useState<string | null>(null);
   const [brand, setBrand] = useState('');
   const [model, setModel] = useState('');
-  const [condition, setCondition] = useState<ProductCondition>('new_unopened');
+  const [condition, setCondition] = useState<ProductCondition | null>(null);
   const [quantity, setQuantity] = useState('1');
-  const [unit, setUnit] = useState<MeasurementUnit>('piece');
+  const [unit, setUnit] = useState<MeasurementUnit>('other');
   const [price, setPrice] = useState('');
   const [isFree, setIsFree] = useState(false);
   const [isNegotiable, setIsNegotiable] = useState(true);
@@ -61,16 +62,19 @@ export default function CreateListingScreen() {
 
   const scrollRef = useRef<ElementRef<typeof ScrollView>>(null);
   const titleInputRef = useRef<ElementRef<typeof TextInput>>(null);
-  const fieldY = useRef({ title: 0, location: 0 });
+  const fieldY = useRef({ title: 0, category: 0, condition: 0, location: 0 });
 
-  const subs = useMemo(() => subcategoriesFor(categoryId), [categoryId]);
+  const subs = useMemo(
+    () => (categoryId ? subcategoriesFor(categoryId) : []),
+    [categoryId]
+  );
 
   const rememberY =
     (key: keyof typeof fieldY.current) => (e: LayoutChangeEvent) => {
       fieldY.current[key] = e.nativeEvent.layout.y;
     };
 
-  const focusField = (key: 'title' | 'location') => {
+  const focusField = (key: keyof typeof fieldY.current) => {
     const y = Math.max(0, fieldY.current[key] - 12);
     scrollRef.current?.scrollTo({ y, animated: true });
     if (key === 'title') {
@@ -78,7 +82,7 @@ export default function CreateListingScreen() {
     }
   };
 
-  const showFieldError = (message: string, key: 'title' | 'location') => {
+  const showFieldError = (message: string, key: keyof typeof fieldY.current) => {
     setError(message);
     // Wait a tick so the sticky banner mounts, then scroll to the field.
     requestAnimationFrame(() => focusField(key));
@@ -179,6 +183,20 @@ export default function CreateListingScreen() {
       showFieldError(
         t('createListing.missingFields', { fields: t('createListing.fieldTitle') }),
         'title',
+      );
+      return;
+    }
+    if (!categoryId) {
+      showFieldError(
+        t('createListing.missingFields', { fields: t('createListing.fieldCategory') }),
+        'category',
+      );
+      return;
+    }
+    if (!condition) {
+      showFieldError(
+        t('createListing.missingFields', { fields: t('createListing.fieldCondition') }),
+        'condition',
       );
       return;
     }
@@ -299,20 +317,25 @@ export default function CreateListingScreen() {
         style={{ minHeight: 100, textAlignVertical: 'top' }}
       />
 
-      <Text style={styles.label}>{t('createListing.category')}</Text>
-      <View style={styles.wrapRow}>
-        {CATEGORIES.map((c) => (
-          <Pressable
-            key={c.id}
-            onPress={() => {
-              setCategoryId(c.id);
-              setSubcategoryId(subcategoriesFor(c.id)[0]?.id ?? null);
-            }}
-            style={[styles.chip, categoryId === c.id && styles.chipActive]}
-          >
-            <Text style={[styles.chipText, categoryId === c.id && styles.chipTextActive]}>{c.name}</Text>
-          </Pressable>
-        ))}
+      <View onLayout={rememberY('category')}>
+        <Text style={styles.label}>{t('createListing.categoryRequired')}</Text>
+        <View style={styles.wrapRow}>
+          {CATEGORIES.map((c) => (
+            <Pressable
+              key={c.id}
+              onPress={() => {
+                setCategoryId(c.id);
+                setSubcategoryId(null);
+                setError(null);
+              }}
+              style={[styles.chip, categoryId === c.id && styles.chipActive]}
+            >
+              <Text style={[styles.chipText, categoryId === c.id && styles.chipTextActive]}>
+                {c.name}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
       </View>
 
       {subs.length ? (
@@ -337,19 +360,24 @@ export default function CreateListingScreen() {
       <Input label={t('createListing.brand')} value={brand} onChangeText={setBrand} />
       <Input label={t('createListing.model')} value={model} onChangeText={setModel} />
 
-      <Text style={styles.label}>{t('createListing.condition')}</Text>
-      <View style={styles.wrapRow}>
-        {CONDITIONS.map((c) => (
-          <Pressable
-            key={c}
-            onPress={() => setCondition(c)}
-            style={[styles.chip, condition === c && styles.chipActive]}
-          >
-            <Text style={[styles.chipText, condition === c && styles.chipTextActive]}>
-              {conditionLabels[c]}
-            </Text>
-          </Pressable>
-        ))}
+      <View onLayout={rememberY('condition')}>
+        <Text style={styles.label}>{t('createListing.conditionRequired')}</Text>
+        <View style={styles.wrapRow}>
+          {CONDITIONS.map((c) => (
+            <Pressable
+              key={c}
+              onPress={() => {
+                setCondition(c);
+                setError(null);
+              }}
+              style={[styles.chip, condition === c && styles.chipActive]}
+            >
+              <Text style={[styles.chipText, condition === c && styles.chipTextActive]}>
+                {conditionLabels[c]}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
       </View>
 
       <View style={styles.row2}>
