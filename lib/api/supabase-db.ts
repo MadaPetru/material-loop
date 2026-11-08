@@ -39,6 +39,7 @@ import {
   type DbPhoto,
   type DbProfile,
 } from './mappers';
+import { isPublicFeedListing } from '@/lib/listingVisibility';
 import { mapConversationRow, mapMessageRow, otherParticipantId, withMeta } from './messaging-shared';
 
 function client() {
@@ -521,38 +522,66 @@ export const supabaseDb = {
     const sb = client();
     const [
       { data: profiles, error: profilesError },
-      { count: activeListings, error: activeError },
-      { count: totalListings, error: totalError },
+      { data: listingRows, error: listingsError },
       { count: conversations, error: convError },
+      { count: messages, error: messagesError },
     ] = await Promise.all([
-      sb.from('profiles').select('roles, deactivated_at'),
-      sb.from('listings').select('*', { count: 'exact', head: true }).eq('status', 'active'),
-      sb.from('listings').select('*', { count: 'exact', head: true }).neq('status', 'removed'),
+      sb.from('profiles').select('roles, deactivated_at, is_seed'),
+      sb.from('listings').select('status, is_seed, city_id').neq('status', 'removed'),
       sb.from('conversations').select('*', { count: 'exact', head: true }),
+      sb.from('messages').select('*', { count: 'exact', head: true }),
     ]);
     if (profilesError) throw new Error(profilesError.message);
-    if (activeError) throw new Error(activeError.message);
-    if (totalError) throw new Error(totalError.message);
+    if (listingsError) throw new Error(listingsError.message);
     if (convError) throw new Error(convError.message);
+    if (messagesError) throw new Error(messagesError.message);
 
     const rows = (profiles ?? []) as Array<{
       roles?: string[] | null;
       deactivated_at: string | null;
+      is_seed?: boolean | null;
+    }>;
+    const listings = (listingRows ?? []) as Array<{
+      status: string;
+      is_seed?: boolean | null;
+      city_id: string;
     }>;
     const usersActive = rows.filter((p) => !p.deactivated_at).length;
+    const usersSeed = rows.filter((p) => !!p.is_seed).length;
+    const active = listings.filter((l) => l.status === 'active');
+    const sold = listings.filter((l) => l.status === 'sold');
+    const given = listings.filter((l) => l.status === 'given_away');
+    const activeCountyIds = new Set(
+      active
+        .map((l) => getCity(l.city_id)?.countyId)
+        .filter((id): id is string => !!id),
+    );
     return {
       usersTotal: rows.length,
       usersActive,
       usersDeactivated: rows.length - usersActive,
+      usersSeed,
+      usersOrganic: rows.length - usersSeed,
       admins: rows.filter((p) =>
         hasEntitlement(
           { roles: (p.roles ?? []) as UserRole[], deactivatedAt: p.deactivated_at },
           'admin.panel',
         ),
       ).length,
-      listingsActive: activeListings ?? 0,
-      listingsTotal: totalListings ?? 0,
+      listingsActive: active.length,
+      listingsActiveSeed: active.filter((l) => !!l.is_seed).length,
+      listingsActiveOrganic: active.filter((l) => !l.is_seed).length,
+      listingsTotal: listings.length,
+      listingsSeed: listings.filter((l) => !!l.is_seed).length,
+      listingsOrganic: listings.filter((l) => !l.is_seed).length,
+      listingsSold: sold.filter((l) => !l.is_seed).length,
+      listingsGivenAway: given.filter((l) => !l.is_seed).length,
+      listingsSoldSeed: sold.filter((l) => !!l.is_seed).length,
+      listingsGivenAwaySeed: given.filter((l) => !!l.is_seed).length,
       conversations: conversations ?? 0,
+      messages: messages ?? 0,
+      countiesWithActiveListings: activeCountyIds.size,
+      countiesTotal: COUNTIES.length,
     };
   },
 
@@ -660,7 +689,9 @@ export const supabaseDb = {
     const page = filters.page ?? 1;
     const pageSize = filters.pageSize ?? 20;
 
-    let query = client().from('listings').select('*').eq('status', 'active');
+    // Pull candidates; visibility is enforced by RLS + isPublicFeedListing
+    // (active organic, or fake sold/given_away). Avoid a second .or() for text search.
+    let query = client().from('listings').select('*').neq('status', 'removed');
 
     if (filters.categoryId) query = query.eq('category_id', filters.categoryId);
     if (filters.subcategoryId) query = query.eq('subcategory_id', filters.subcategoryId);
@@ -682,7 +713,12 @@ export const supabaseDb = {
     const { data, error } = await query.order('published_at', { ascending: false }).limit(500);
     if (error) throw new Error(error.message);
 
-    let rows = (data ?? []) as DbListing[];
+    let rows = ((data ?? []) as DbListing[]).filter((row) =>
+      isPublicFeedListing({
+        status: row.status,
+        isSeed: row.is_seed ?? false,
+      })
+    );
 
     if (filters.countyId) {
       rows = rows.filter((r) => getCity(r.city_id)?.countyId === filters.countyId);

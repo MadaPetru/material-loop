@@ -46,6 +46,8 @@ export type SeedCatalogListing = {
   expiresInDays: number;
   photoLabel: string;
   photoHue: string;
+  /** Defaults to active when omitted (legacy sample catalog). */
+  status?: 'active' | 'sold' | 'given_away';
 };
 
 export const SEED_SAMPLE_CATALOG: {

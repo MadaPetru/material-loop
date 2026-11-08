@@ -4,17 +4,21 @@
  * Usage:
  *   SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... node scripts/seed-sample-listings.mjs
  *
- * Requires migration 017_seed_sample_flags.sql. Catalog: data/seed-sample.catalog.ts
- * (parsed lightly from the TypeScript export — keep the `= { ... } as const` / object literal shape).
+ * Requires migration 017_seed_sample_flags.sql.
+ * Catalogs: data/seed-sample.catalog.ts (+ optional .json) and data/seed-county.catalog.json
  */
 import { createClient } from '@supabase/supabase-js';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import ws from 'ws';
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
+// Node 20 seed scripts need an explicit WebSocket implementation.
+if (!globalThis.WebSocket) globalThis.WebSocket = ws;
 
 // Prefer compiled-friendly JSON sidecar if present; else extract object from .ts source.
-function loadCatalog() {
+function loadSampleCatalog() {
   const jsonPath = join(__dirname, '../data/seed-sample.catalog.json');
   try {
     return JSON.parse(readFileSync(jsonPath, 'utf8'));
@@ -45,7 +49,21 @@ function loadCatalog() {
   return Function(`"use strict"; return (${literal});`)();
 }
 
-const catalog = loadCatalog();
+function loadCountyCatalog() {
+  const jsonPath = join(__dirname, '../data/seed-county.catalog.json');
+  try {
+    return JSON.parse(readFileSync(jsonPath, 'utf8'));
+  } catch {
+    return { profiles: [], listings: [] };
+  }
+}
+
+const sample = loadSampleCatalog();
+const county = loadCountyCatalog();
+const catalog = {
+  profiles: [...(sample.profiles ?? []), ...(county.profiles ?? [])],
+  listings: [...(sample.listings ?? []), ...(county.listings ?? [])],
+};
 
 const url = process.env.SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -125,6 +143,12 @@ async function upsertProfile(profile) {
   if (error) throw error;
 }
 
+function seedOfferedStatus(listing) {
+  if (listing.status === 'sold' || listing.status === 'given_away') return listing.status;
+  // Fake/seed inventory is already offered — never active in the public feed.
+  return listing.isFree ? 'given_away' : 'sold';
+}
+
 async function upsertListing(listing, sellerUuid) {
   const row = {
     id: listing.uuid,
@@ -149,7 +173,7 @@ async function upsertListing(listing, sellerUuid) {
     pickup_available: listing.pickupAvailable,
     delivery_available: listing.deliveryAvailable,
     storage_notes: listing.storageNotes,
-    status: 'active',
+    status: seedOfferedStatus(listing),
     published_at: listing.publishedAt,
     expires_at: daysFromNow(listing.expiresInDays),
     is_seed: true,

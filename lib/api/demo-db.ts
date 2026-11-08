@@ -38,6 +38,7 @@ import type {
   SearchFilters,
   UserRole,
 } from '@/lib/types';
+import { isPublicFeedListing } from '@/lib/listingVisibility';
 import { otherParticipantId, withMeta } from './messaging-shared';
 
 function normalizeConversation(c: Conversation): Conversation {
@@ -48,7 +49,7 @@ function normalizeConversation(c: Conversation): Conversation {
   };
 }
 
-const STORAGE_KEY = 'materialloop.demo.v8';
+const STORAGE_KEY = 'materialloop.demo.v9';
 
 /** Demo OTP always accepts this code (and any 6 digits after send). */
 export const DEMO_PHONE_OTP = '123456';
@@ -124,15 +125,23 @@ async function load() {
                 entitlements: filterKnownEntitlements(r.entitlements),
               }))
             : defaults.roles;
+        // Re-apply seed catalog on every load so fake offered listings stay in the feed
+        // even when older AsyncStorage demos predate county seeds.
+        const organicProfiles = profiles.filter((p) => !p.isSeed);
+        const organicListings = (parsed.listings ?? []).filter((l) => !l.isSeed);
+        const seedListingIds = new Set(defaults.listings.map((l) => l.id));
+        const organicPhotos = (parsed.photos ?? []).filter(
+          (ph) => !seedListingIds.has(ph.listingId),
+        );
         memory = {
-          profiles,
-          listings: parsed.listings?.length ? parsed.listings : defaults.listings,
-          photos: parsed.photos?.length ? parsed.photos : defaults.photos,
+          profiles: [...organicProfiles, ...structuredClone(defaults.profiles)],
+          listings: [...organicListings, ...structuredClone(defaults.listings)],
+          photos: [...organicPhotos, ...structuredClone(defaults.photos)],
           favorites: parsed.favorites ?? [],
           conversations: (parsed.conversations ?? []).map(normalizeConversation),
           messages: parsed.messages ?? [],
           roles,
-          ads: parsed.ads ?? [],
+          ads: parsed.ads?.length ? parsed.ads : defaults.ads,
           sessionUserId: parsed.sessionUserId ?? null,
           passwords: { ...defaults.passwords, ...(parsed.passwords ?? {}) },
           pendingPhone: parsed.pendingPhone ?? null,
@@ -422,14 +431,37 @@ export const demoDb = {
     const state = await load();
     const usersActive = state.profiles.filter((p) => !p.deactivatedAt).length;
     const usersDeactivated = state.profiles.length - usersActive;
+    const active = state.listings.filter((l) => l.status === 'active');
+    const sold = state.listings.filter((l) => l.status === 'sold');
+    const given = state.listings.filter((l) => l.status === 'given_away');
+    const activeCountyIds = new Set(
+      active
+        .map((l) => getCity(l.cityId)?.countyId)
+        .filter((id): id is string => !!id),
+    );
+    const notRemoved = state.listings.filter((l) => l.status !== 'removed');
+    const usersSeed = state.profiles.filter((p) => p.isSeed).length;
     return {
       usersTotal: state.profiles.length,
       usersActive,
       usersDeactivated,
+      usersSeed,
+      usersOrganic: state.profiles.length - usersSeed,
       admins: state.profiles.filter((p) => hasEntitlement(p, 'admin.panel')).length,
-      listingsActive: state.listings.filter((l) => l.status === 'active').length,
-      listingsTotal: state.listings.filter((l) => l.status !== 'removed').length,
+      listingsActive: active.length,
+      listingsActiveSeed: active.filter((l) => l.isSeed).length,
+      listingsActiveOrganic: active.filter((l) => !l.isSeed).length,
+      listingsTotal: notRemoved.length,
+      listingsSeed: notRemoved.filter((l) => l.isSeed).length,
+      listingsOrganic: notRemoved.filter((l) => !l.isSeed).length,
+      listingsSold: sold.filter((l) => !l.isSeed).length,
+      listingsGivenAway: given.filter((l) => !l.isSeed).length,
+      listingsSoldSeed: sold.filter((l) => l.isSeed).length,
+      listingsGivenAwaySeed: given.filter((l) => l.isSeed).length,
       conversations: state.conversations.length,
+      messages: state.messages.length,
+      countiesWithActiveListings: activeCountyIds.size,
+      countiesTotal: COUNTIES.length,
     };
   },
 
@@ -547,7 +579,7 @@ export const demoDb = {
     const state = await load();
     const page = filters.page ?? 1;
     const pageSize = filters.pageSize ?? 20;
-    let items = state.listings.filter((l) => l.status === 'active');
+    let items = state.listings.filter((l) => isPublicFeedListing(l));
 
     if (filters.query) {
       const q = filters.query.toLowerCase();

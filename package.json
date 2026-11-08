@@ -41,7 +41,8 @@
   "devDependencies": {
     "@types/lodash": "^4.17.27",
     "@types/react": "~19.3.0",
-    "typescript": "~6.0.3"
+    "typescript": "~6.0.3",
+    "ws": "^8.22.1"
   },
   "scripts": {
     "start": "expo start",
@@ -51,7 +52,9 @@
     "export:web": "expo export --platform web",
     "typecheck": "tsc --noEmit",
     "lint": "expo lint",
-    "seed:samples": "node scripts/seed-sample-listings.mjs"
+    "seed:generate-counties": "node scripts/generate-county-seed-catalog.mjs",
+    "seed:samples": "node scripts/generate-county-seed-catalog.mjs && node scripts/seed-sample-listings.mjs",
+    "seed:samples:cli": "node scripts/run-seed-with-cli-keys.mjs"
   },
   "private": true
 }

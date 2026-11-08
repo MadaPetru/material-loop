@@ -4,6 +4,7 @@ import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-nativ
 import { ListingCard } from '@/components/listings/ListingCard';
 import { formatCityCounty } from '@/data/romania';
 import { marketplace } from '@/lib/api/marketplace';
+import { isPublicFeedListing } from '@/lib/listingVisibility';
 import { colors, fonts, spacing } from '@/lib/theme';
 import type { ListingWithRelations, Profile } from '@/lib/types';
 
@@ -17,7 +18,7 @@ export default function SellerProfileScreen() {
     Promise.all([marketplace.getProfile(String(id)), marketplace.listingsForSeller(String(id))])
       .then(([p, l]) => {
         setProfile(p);
-        setListings(l.filter((x) => x.status === 'active'));
+        setListings(l.filter((x) => isPublicFeedListing(x)));
       })
       .finally(() => setLoading(false));
   }, [id]);

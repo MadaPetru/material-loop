@@ -124,10 +124,27 @@ export interface AdminAnalytics {
   usersTotal: number;
   usersActive: number;
   usersDeactivated: number;
+  /** Fake / cold-start accounts (`profiles.is_seed`). */
+  usersSeed: number;
+  /** Real (non-seed) profiles. */
+  usersOrganic: number;
   admins: number;
   listingsActive: number;
+  listingsActiveSeed: number;
+  listingsActiveOrganic: number;
   listingsTotal: number;
+  /** All fake listings (`listings.is_seed`), any status. */
+  listingsSeed: number;
+  /** All real listings (not seed), excl. removed. */
+  listingsOrganic: number;
+  listingsSold: number;
+  listingsGivenAway: number;
+  listingsSoldSeed: number;
+  listingsGivenAwaySeed: number;
   conversations: number;
+  messages: number;
+  countiesWithActiveListings: number;
+  countiesTotal: number;
 }
 
 export interface ListingPhoto {

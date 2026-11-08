@@ -12,8 +12,19 @@ import {
   type SeedCatalogListing,
   type SeedCatalogProfile,
 } from '@/data/seed-sample.catalog';
+import countyCatalogJson from '@/data/seed-county.catalog.json';
 
 const now = new Date().toISOString();
+
+const COUNTY_CATALOG = countyCatalogJson as {
+  profiles: SeedCatalogProfile[];
+  listings: SeedCatalogListing[];
+};
+
+const MERGED_CATALOG = {
+  profiles: [...SEED_SAMPLE_CATALOG.profiles, ...COUNTY_CATALOG.profiles],
+  listings: [...SEED_SAMPLE_CATALOG.listings, ...COUNTY_CATALOG.listings],
+};
 
 const PLACEHOLDER = (label: string, hue: string) =>
   `https://placehold.co/800x600/${hue}/F3EEE6/png?text=${encodeURIComponent(label)}`;
@@ -41,6 +52,12 @@ function mapProfile(row: SeedCatalogProfile): Profile {
   };
 }
 
+function seedOfferedStatus(row: SeedCatalogListing): Listing['status'] {
+  if (row.status === 'sold' || row.status === 'given_away') return row.status;
+  // Fake/seed inventory is already offered — never active in the public feed.
+  return row.isFree ? 'given_away' : 'sold';
+}
+
 function mapListing(row: SeedCatalogListing): Listing {
   return {
     id: row.demoId,
@@ -66,7 +83,7 @@ function mapListing(row: SeedCatalogListing): Listing {
     pickupAvailable: row.pickupAvailable,
     deliveryAvailable: row.deliveryAvailable,
     storageNotes: row.storageNotes,
-    status: 'active',
+    status: seedOfferedStatus(row),
     publishedAt: row.publishedAt,
     expiresAt: daysFromNow(row.expiresInDays),
     createdAt: row.publishedAt,
@@ -75,11 +92,11 @@ function mapListing(row: SeedCatalogListing): Listing {
   };
 }
 
-export const SEED_PROFILES: Profile[] = SEED_SAMPLE_CATALOG.profiles.map(mapProfile);
+export const SEED_PROFILES: Profile[] = MERGED_CATALOG.profiles.map(mapProfile);
 
-export const SEED_LISTINGS: Listing[] = SEED_SAMPLE_CATALOG.listings.map(mapListing);
+export const SEED_LISTINGS: Listing[] = MERGED_CATALOG.listings.map(mapListing);
 
-export const SEED_PHOTOS: ListingPhoto[] = SEED_SAMPLE_CATALOG.listings.map((row, index) => ({
+export const SEED_PHOTOS: ListingPhoto[] = MERGED_CATALOG.listings.map((row, index) => ({
   id: `ph${index + 1}`,
   listingId: row.demoId,
   url: PLACEHOLDER(row.photoLabel, row.photoHue),
@@ -88,5 +105,5 @@ export const SEED_PHOTOS: ListingPhoto[] = SEED_SAMPLE_CATALOG.listings.map((row
 
 /** Demo-only passwords keyed by email (local AsyncStorage auth). */
 export const SEED_DEMO_PASSWORDS: Record<string, string> = Object.fromEntries(
-  SEED_SAMPLE_CATALOG.profiles.map((row) => [row.email, row.password]),
+  MERGED_CATALOG.profiles.map((row) => [row.email, row.password]),
 );

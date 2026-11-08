@@ -51,7 +51,7 @@ cp .env.example .env
 ```
 
 4. Reactivează aplicația. Cu `EXPO_PUBLIC_SUPABASE_*` setate, Auth + anunțuri folosesc cloud-ul (nu demo local).
-5. Pentru un **feed de anunțuri-exemplu** (surplus / leftover) până apar vânzători reali: aplică migrarea `017_seed_sample_flags.sql`, apoi rulează o singură dată (service role):
+5. Pentru un **feed de anunțuri-exemplu** (surplus / leftover) până apar vânzători reali: aplică migrarea `017_seed_sample_flags.sql`, apoi rulează (service role):
 
 ```bash
 # PowerShell
@@ -60,12 +60,40 @@ $env:SUPABASE_SERVICE_ROLE_KEY="your_service_role_key"
 npm run seed:samples
 ```
 
-Anunțurile apar pe home/search ca listări normale; sunt marcate `is_seed` și se pot șterge ulterior cu `delete from listings where is_seed;`. Catalogul sursă: `data/seed-sample.catalog.json`.
-6. Pentru **verificare telefon (SMS)**: Authentication → Providers → Phone → activează un provider SMS (Twilio / MessageBird etc.). Fără SMS provider, OTP-ul nu ajunge pe telefon real; în **mod demo** folosește codul `123456`.
-7. Pentru **ștergere cont** (hard delete Auth): deploy Edge Function-ul din repo:
+`seed:samples` regenerează catalogul pe județe (`data/seed-county.catalog.json`: 1–3 anunțuri/județ) plus catalogul Bihor, creează **utilizatori fake** (`profiles.is_seed`) și anunțuri **deja oferite** (`sold` / `given_away`, `is_seed=true`).
+
+Fake-urile **apar în Home/Search** ca „Exemplu / deja oferit”, dar **contactul e dezactivat**. Anunțurile reale `sold`/`given_away` **nu** apar în feed (doar cele `active`). În Admin vezi clar fake vs reali. Ștergere ulterioară:
+
+```sql
+delete from listing_photos where listing_id in (select id from listings where is_seed);
+delete from listings where is_seed;
+delete from profiles where is_seed;
+-- apoi șterge userii Auth seed din Dashboard dacă e nevoie
+```
+
+6. Pentru **WhatsApp săptămânal cu statistici** (gratis, fără SMTP — [CallMeBot](https://www.callmebot.com/blog/free-api-whatsapp-messages/)):
+   1. Adaugă în contacte numărul CallMeBot și trimite mesajul de activare (vezi ghidul de pe site) — primești un `apikey`.
+   2. Deploy: `npx supabase functions deploy stats-email --no-verify-jwt`
+   3. Setează secrets (telefon în format internațional, fără `+`, ex. `407xxxxxxxx`):
+
+```bash
+npx supabase secrets set STATS_CRON_SECRET=long-random CALLMEBOT_PHONE=407xxxxxxxx CALLMEBOT_APIKEY=your_apikey
+```
+
+   - Test manual:
+
+```bash
+curl -X POST "$env:EXPO_PUBLIC_SUPABASE_URL/functions/v1/stats-email" -H "x-stats-cron-secret: YOUR_SECRET"
+```
+
+   - Programează săptămânal (luni ~07:00 Europe/Bucharest): Supabase Dashboard → Edge Functions → `stats-email` → Schedules, cron `0 5 * * 1` (05:00 UTC), header `x-stats-cron-secret`.
+   - În Admin, **Vândute / Oferite gratuit** numără doar anunțurile **reale** (fără seed).
+
+7. Pentru **verificare telefon (SMS)**: Authentication → Providers → Phone → activează un provider SMS (Twilio / MessageBird etc.). Fără SMS provider, OTP-ul nu ajunge pe telefon real; în **mod demo** folosește codul `123456`.
+8. Pentru **ștergere cont** (hard delete Auth): deploy Edge Function-ul din repo:
    `npx supabase functions deploy delete-account`
    (necesită proiect link-uit). Fără el, app-ul face un soft-delete (profil dezactivat + anunțuri ascunse) și te deconectează.
-8. Pentru **roluri / admin** pe Supabase: aplică migrările `008`–`013` (catalog `roles` + ads marketing), apoi:
+9. Pentru **roluri / admin** pe Supabase: aplică migrările `008`–`013` (catalog `roles` + ads marketing), apoi:
    `update profiles set roles = array['user','admin'] where email = 'you@example.com';`
    Rolurile și entitlement-urile se editează din panoul Admin → Roles.
    Accesul UI/API se controlează prin **entitlements** acțiune-cu-acțiune (`lib/entitlements.ts`).

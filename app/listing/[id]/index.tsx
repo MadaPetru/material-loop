@@ -137,6 +137,11 @@ export default function ListingDetailScreen() {
               <Text style={[styles.statusPillText, styles.freePillText]}>{t('common.free')}</Text>
             </View>
           ) : null}
+          {listing.isSeed ? (
+            <View style={[styles.statusPill, styles.seedPill]}>
+              <Text style={[styles.statusPillText, styles.seedPillText]}>{t('listing.seedBadge')}</Text>
+            </View>
+          ) : null}
         </View>
 
         <Text style={styles.meta}>
@@ -202,7 +207,11 @@ export default function ListingDetailScreen() {
         </View>
 
         {!isOwner ? (
-          can('messages.start') || !user ? (
+          listing.isSeed || listing.seller?.isSeed ? (
+            <View style={styles.seedNotice}>
+              <Text style={styles.seedNoticeText}>{t('listing.seedContactBlocked')}</Text>
+            </View>
+          ) : can('messages.start') || !user ? (
             <Button
               label={t('listing.contactSeller')}
               onPress={async () => {
@@ -341,6 +350,21 @@ const styles = StyleSheet.create({
   statusPillText: { fontFamily: fonts.sansBold, color: colors.brandDark, fontSize: 12 },
   freePill: { backgroundColor: colors.accentSoft },
   freePillText: { color: colors.accent },
+  seedPill: { backgroundColor: colors.accentSoft },
+  seedPillText: { color: colors.accent },
+  seedNotice: {
+    backgroundColor: colors.accentSoft,
+    borderRadius: radii.md,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
+  seedNoticeText: {
+    fontFamily: fonts.sansMedium,
+    color: colors.ink,
+    fontSize: 14,
+    lineHeight: 20,
+  },
   meta: { fontFamily: fonts.sans, color: colors.inkMuted, fontSize: 14, lineHeight: 20 },
   section: {
     fontFamily: fonts.display,

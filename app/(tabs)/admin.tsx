@@ -487,10 +487,23 @@ export default function AdminScreen() {
       {activeSection === 'users' && canSeeAnalytics && analytics ? (
         <View style={styles.stats}>
           <Stat label={t('admin.statUsers')} value={String(analytics.usersTotal)} />
+          <Stat label={t('admin.statOrganicUsers')} value={String(analytics.usersOrganic)} />
+          <Stat label={t('admin.statSeedUsers')} value={String(analytics.usersSeed)} />
           <Stat label={t('admin.statActive')} value={String(analytics.usersActive)} />
           <Stat label={t('admin.statAdmins')} value={String(analytics.admins)} />
           <Stat label={t('admin.statListings')} value={String(analytics.listingsActive)} />
+          <Stat label={t('admin.statOrganicListings')} value={String(analytics.listingsActiveOrganic)} />
+          <Stat label={t('admin.statSeedListings')} value={String(analytics.listingsActiveSeed)} />
+          <Stat label={t('admin.statRealListingsTotal')} value={String(analytics.listingsOrganic)} />
+          <Stat label={t('admin.statFakeListingsTotal')} value={String(analytics.listingsSeed)} />
+          <Stat label={t('admin.statSold')} value={String(analytics.listingsSold)} />
+          <Stat label={t('admin.statGivenAway')} value={String(analytics.listingsGivenAway)} />
           <Stat label={t('admin.statConversations')} value={String(analytics.conversations)} />
+          <Stat label={t('admin.statMessages')} value={String(analytics.messages)} />
+          <Stat
+            label={t('admin.statCountyCoverage')}
+            value={`${analytics.countiesWithActiveListings}/${analytics.countiesTotal}`}
+          />
           <Stat label={t('admin.statDeactivated')} value={String(analytics.usersDeactivated)} />
         </View>
       ) : null}

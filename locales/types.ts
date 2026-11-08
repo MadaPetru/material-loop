@@ -321,6 +321,16 @@ export type TranslationDict = {
     statListings: string;
     statConversations: string;
     statDeactivated: string;
+    statSeedUsers: string;
+    statOrganicUsers: string;
+    statOrganicListings: string;
+    statSeedListings: string;
+    statFakeListingsTotal: string;
+    statRealListingsTotal: string;
+    statSold: string;
+    statGivenAway: string;
+    statMessages: string;
+    statCountyCoverage: string;
   };
   auth: {
     loginTitle: string;
@@ -396,6 +406,8 @@ export type TranslationDict = {
     removeFavorite: string;
     share: string;
     contactSeller: string;
+    seedBadge: string;
+    seedContactBlocked: string;
     edit: string;
     manageTitle: string;
     statusHint: string;
