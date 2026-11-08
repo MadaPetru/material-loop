@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -19,15 +19,29 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLocale } from '@/contexts/LocaleContext';
 import { useUnreadMessages } from '@/contexts/UnreadMessagesContext';
 import { marketplace } from '@/lib/api/marketplace';
+import { IS_DEMO } from '@/lib/config';
+import { getSupabase } from '@/lib/supabase';
 import { colors, fonts, layout, radii, spacing } from '@/lib/theme';
 import { useResponsive } from '@/lib/useResponsive';
 import { toUserError } from '@/lib/userErrors';
 import type { ChatMessage, ConversationWithMeta } from '@/lib/types';
 
+const THREAD_POLL_MS = 2500;
+
+function threadIsBehind(open: ConversationWithMeta | undefined, local: ChatMessage[]) {
+  if (!open?.lastMessageAt) return false;
+  const last = local[local.length - 1];
+  if (!last) return !!open.lastMessageBody;
+  if (open.lastMessageAt > last.createdAt) return true;
+  if (open.lastMessageSenderId && open.lastMessageSenderId !== last.senderId) return true;
+  if (open.lastMessageBody != null && open.lastMessageBody !== last.body) return true;
+  return false;
+}
+
 export default function MessagesScreen() {
   const { user } = useAuth();
   const { t, locale } = useLocale();
-  const { refreshUnread } = useUnreadMessages();
+  const { refreshUnread, setActiveConversationId } = useUnreadMessages();
   const { isDesktop, contentPad } = useResponsive();
   const params = useLocalSearchParams<{ conversationId?: string }>();
   const [conversations, setConversations] = useState<ConversationWithMeta[]>([]);
@@ -40,9 +54,31 @@ export default function MessagesScreen() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [convQuery, setConvQuery] = useState('');
+  const [isFocused, setIsFocused] = useState(false);
   const listRef = useRef<FlatList<ChatMessage>>(null);
   const messagesRef = useRef<ChatMessage[]>([]);
   const selectedIdRef = useRef<string | null>(null);
+  const syncingRef = useRef(false);
+  const focusedRef = useRef(false);
+
+  // Tab screens stay mounted; track focus so we don't mark chats read in the background.
+  useFocusEffect(
+    useCallback(() => {
+      focusedRef.current = true;
+      setIsFocused(true);
+      setActiveConversationId(selectedIdRef.current);
+      return () => {
+        focusedRef.current = false;
+        setIsFocused(false);
+        setActiveConversationId(null);
+      };
+    }, [setActiveConversationId])
+  );
+
+  useEffect(() => {
+    if (!isFocused) return;
+    setActiveConversationId(selectedId);
+  }, [isFocused, selectedId, setActiveConversationId]);
 
   const filteredConversations = useMemo(() => {
     const q = convQuery.trim().toLowerCase();
@@ -92,6 +128,7 @@ export default function MessagesScreen() {
       if (!user) return;
       selectedIdRef.current = id;
       setSelectedId(id);
+      if (focusedRef.current) setActiveConversationId(id);
       setLoadingThread(true);
       setError(null);
       try {
@@ -104,15 +141,18 @@ export default function MessagesScreen() {
         setConversations((prev) =>
           prev.map((c) => (c.id === id ? { ...c, unread: false } : c))
         );
-        await marketplace.markConversationRead(id, user.id);
-        await refreshUnread();
+        // Only mark read while the user is actually looking at Messages.
+        if (focusedRef.current) {
+          await marketplace.markConversationRead(id, user.id);
+          await refreshUnread();
+        }
       } catch (e) {
         setError(toUserError(e));
       } finally {
         setLoadingThread(false);
       }
     },
-    [user, refreshUnread, applyMessages]
+    [user, refreshUnread, applyMessages, setActiveConversationId]
   );
 
   useEffect(() => {
@@ -121,65 +161,105 @@ export default function MessagesScreen() {
 
   useEffect(() => {
     const fromParam = typeof params.conversationId === 'string' ? params.conversationId : null;
-    if (fromParam) {
-      openConversation(fromParam);
-      return;
-    }
+    if (!fromParam) return;
+    openConversation(fromParam);
+    // Only react to the deep-link param, not conversation list refreshes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.conversationId]);
+
+  useEffect(() => {
+    if (params.conversationId) return;
     if (isDesktop && conversations[0] && !selectedId) {
       openConversation(conversations[0].id);
     }
   }, [params.conversationId, conversations, isDesktop, selectedId, openConversation]);
 
-  // Keep the open thread and conversation list fresh without requiring a re-click.
-  useEffect(() => {
-    if (!user) return;
-    let cancelled = false;
+  const refreshOpenThread = useCallback(async () => {
+    if (!user || syncingRef.current || !focusedRef.current) return;
+    const openId = selectedIdRef.current;
+    if (!openId) {
+      await loadConversations({ silent: true });
+      return;
+    }
 
-    const syncOpenThread = async () => {
-      const openId = selectedIdRef.current;
-      if (!openId) {
-        await loadConversations({ silent: true });
+    syncingRef.current = true;
+    try {
+      // List first so we can detect a newer preview, then reload the thread if needed.
+      const rows = await marketplace.listConversations(user.id);
+      if (!focusedRef.current || selectedIdRef.current !== openId) return;
+
+      const open = rows.find((c) => c.id === openId);
+      setConversations(rows.map((c) => (c.id === openId ? { ...c, unread: false } : c)));
+      if (open) setSelected(open);
+
+      const prev = messagesRef.current;
+      const needsThread = threadIsBehind(open, prev);
+      if (!needsThread) {
+        await refreshUnread();
         return;
       }
-      try {
-        const [msgs, rows] = await Promise.all([
-          marketplace.getMessages(openId, user.id),
-          marketplace.listConversations(user.id),
-        ]);
-        if (cancelled || selectedIdRef.current !== openId) return;
 
-        const prev = messagesRef.current;
-        const prevIds = new Set(prev.map((m) => m.id));
-        const changed =
-          prev.length !== msgs.length || prev[prev.length - 1]?.id !== msgs[msgs.length - 1]?.id;
-        const newFromOther = msgs.filter((m) => m.senderId !== user.id && !prevIds.has(m.id));
+      const msgs = await marketplace.getMessages(openId, user.id);
+      if (!focusedRef.current || selectedIdRef.current !== openId) return;
 
-        if (changed) {
-          applyMessages(msgs, { scroll: newFromOther.length > 0, animated: true });
-        }
+      const prevIds = new Set(prev.map((m) => m.id));
+      const newFromOther = msgs.filter((m) => m.senderId !== user.id && !prevIds.has(m.id));
+      applyMessages(msgs, { scroll: true, animated: true });
 
-        setConversations(rows.map((c) => (c.id === openId ? { ...c, unread: false } : c)));
-
-        if (newFromOther.length > 0) {
-          await marketplace.markConversationRead(openId, user.id);
-          if (!cancelled) await refreshUnread();
-        } else {
-          await refreshUnread();
-        }
-      } catch {
-        /* keep current thread */
+      if (newFromOther.length > 0) {
+        await marketplace.markConversationRead(openId, user.id);
       }
+      await refreshUnread();
+    } catch {
+      /* keep current thread */
+    } finally {
+      syncingRef.current = false;
+    }
+  }, [user, loadConversations, applyMessages, refreshUnread]);
+
+  // Poll only while Messages is focused — tab screens stay mounted in the background.
+  useEffect(() => {
+    if (!user || !isFocused) return;
+    let cancelled = false;
+
+    const tick = () => {
+      if (!cancelled) refreshOpenThread();
     };
 
-    const interval = setInterval(() => {
-      syncOpenThread();
-    }, 4000);
-
+    tick();
+    const interval = setInterval(tick, THREAD_POLL_MS);
     return () => {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [user, loadConversations, applyMessages, refreshUnread]);
+  }, [user, selectedId, isFocused, refreshOpenThread]);
+
+  // Instant updates for the open conversation (Supabase Realtime).
+  useEffect(() => {
+    if (!user || !selectedId || !isFocused || IS_DEMO) return;
+    const sb = getSupabase();
+    if (!sb) return;
+
+    const channel = sb
+      .channel(`messages-thread-${selectedId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `conversation_id=eq.${selectedId}`,
+        },
+        () => {
+          refreshOpenThread();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      sb.removeChannel(channel);
+    };
+  }, [user, selectedId, isFocused, refreshOpenThread]);
 
   const send = async () => {
     if (!user || !selectedId || !draft.trim() || sending) return;
@@ -322,6 +402,7 @@ export default function MessagesScreen() {
                     onPress={() => {
                       selectedIdRef.current = null;
                       setSelectedId(null);
+                      if (focusedRef.current) setActiveConversationId(null);
                     }}
                     style={styles.backBtn}
                   >
