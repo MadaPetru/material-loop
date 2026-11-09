@@ -227,6 +227,101 @@ export default function SearchScreen() {
     t,
   };
 
+  const resultsLabel =
+    loading && !items.length
+      ? t('search.searching')
+      : t('search.resultsRange', {
+          shown: String(items.length),
+          total: String(total),
+        });
+
+  const listHeader = (
+    <View style={styles.topBar}>
+      <View style={styles.searchRow}>
+        <View style={styles.searchInput}>
+          <Input
+            placeholder={t('search.placeholder')}
+            value={query}
+            onChangeText={setQuery}
+            onSubmitEditing={() => void runSearch(1, false)}
+            returnKeyType="search"
+          />
+        </View>
+        {isDesktop ? (
+          <Button
+            label={t('common.search')}
+            compact
+            onPress={() => void runSearch(1, false)}
+            style={styles.searchBtn}
+          />
+        ) : null}
+      </View>
+
+      {!isDesktop ? (
+        <View style={styles.mobileActions}>
+          <Pressable
+            accessibilityRole="button"
+            style={[styles.filterToggle, showFilters && styles.filterToggleOpen]}
+            onPress={() => setShowFilters((v) => !v)}
+          >
+            <Text style={styles.filterToggleText}>
+              {t('common.filters')}
+              {activeFilterCount ? ` · ${activeFilterCount}` : ''}
+            </Text>
+          </Pressable>
+          <Button
+            label={t('common.search')}
+            compact
+            onPress={() => void runSearch(1, false)}
+            style={{ flex: 1 }}
+          />
+        </View>
+      ) : null}
+
+      {!isDesktop && showFilters ? (
+        <View style={styles.mobileFilterCard}>
+          <FilterPanel {...filterProps} compact />
+          <View style={styles.mobileFilterFooter}>
+            <Button
+              label={t('common.reset')}
+              variant="secondary"
+              compact
+              onPress={clearFilters}
+            />
+            <Button
+              label={t('common.apply')}
+              compact
+              onPress={() => {
+                setShowFilters(false);
+                void runSearch(1, false);
+              }}
+            />
+          </View>
+        </View>
+      ) : null}
+
+      {!isDesktop && !showFilters && filterSummary.length > 0 ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.summaryRow}
+          nestedScrollEnabled
+        >
+          {filterSummary.map((label) => (
+            <View key={label} style={styles.summaryChip}>
+              <Text style={styles.summaryChipText}>{label}</Text>
+            </View>
+          ))}
+          <Pressable onPress={clearFilters}>
+            <Text style={styles.clearLink}>{t('common.clearAll')}</Text>
+          </Pressable>
+        </ScrollView>
+      ) : null}
+
+      <Text style={styles.count}>{resultsLabel}</Text>
+    </View>
+  );
+
   return (
     <View
       style={[
@@ -236,7 +331,11 @@ export default function SearchScreen() {
       ]}
     >
       {isDesktop ? (
-        <View style={styles.desktopSidebar}>
+        <ScrollView
+          style={styles.desktopSidebar}
+          contentContainerStyle={styles.desktopSidebarContent}
+          keyboardShouldPersistTaps="handled"
+        >
           <Text style={styles.sidebarTitle}>{t('search.filtersTitle')}</Text>
           <FilterPanel {...filterProps} />
           {activeFilterCount > 0 ? (
@@ -248,118 +347,28 @@ export default function SearchScreen() {
               style={{ alignSelf: 'flex-start' }}
             />
           ) : null}
-        </View>
+        </ScrollView>
       ) : null}
 
       <View style={styles.main}>
-        <View style={[styles.topBar, !isDesktop && { paddingHorizontal: contentPad }]}>
-          <View style={styles.searchRow}>
-            <View style={styles.searchInput}>
-              <Input
-                placeholder={t('search.placeholder')}
-                value={query}
-                onChangeText={setQuery}
-                onSubmitEditing={() => void runSearch(1, false)}
-                returnKeyType="search"
-              />
-            </View>
-            {isDesktop ? (
-              <Button
-                label={t('common.search')}
-                compact
-                onPress={() => void runSearch(1, false)}
-                style={styles.searchBtn}
-              />
-            ) : null}
-          </View>
-
-          {!isDesktop ? (
-            <View style={styles.mobileActions}>
-              <Pressable
-                accessibilityRole="button"
-                style={[styles.filterToggle, showFilters && styles.filterToggleOpen]}
-                onPress={() => setShowFilters((v) => !v)}
-              >
-                <Text style={styles.filterToggleText}>
-                  {t('common.filters')}
-                  {activeFilterCount ? ` · ${activeFilterCount}` : ''}
-                </Text>
-              </Pressable>
-              <Button
-                label={t('common.search')}
-                compact
-                onPress={() => void runSearch(1, false)}
-                style={{ flex: 1 }}
-              />
-            </View>
-          ) : null}
-
-          {!isDesktop && showFilters ? (
-            <View style={styles.mobileFilterCard}>
-              <FilterPanel {...filterProps} compact />
-              <View style={styles.mobileFilterFooter}>
-                <Button
-                  label={t('common.reset')}
-                  variant="secondary"
-                  compact
-                  onPress={clearFilters}
-                />
-                <Button
-                  label={t('common.apply')}
-                  compact
-                  onPress={() => {
-                    setShowFilters(false);
-                    void runSearch(1, false);
-                  }}
-                />
-              </View>
-            </View>
-          ) : null}
-
-          {!isDesktop && !showFilters && filterSummary.length > 0 ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.summaryRow}
-            >
-              {filterSummary.map((label) => (
-                <View key={label} style={styles.summaryChip}>
-                  <Text style={styles.summaryChipText}>{label}</Text>
-                </View>
-              ))}
-              <Pressable onPress={clearFilters}>
-                <Text style={styles.clearLink}>{t('common.clearAll')}</Text>
-              </Pressable>
-            </ScrollView>
-          ) : null}
-
-          <Text style={styles.count}>
-            {loading && !items.length
-              ? t('search.searching')
-              : t('search.resultsRange', {
-                  shown: String(items.length),
-                  total: String(total),
-                })}
-          </Text>
-        </View>
-
-        {loading && items.length === 0 ? (
-          <ActivityIndicator color={colors.brand} style={{ marginTop: 40 }} />
-        ) : (
-          <FlatList
-            data={items}
-            key={`${columns}-${locale}`}
-            numColumns={columns}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={[
-              styles.list,
-              !isDesktop && { paddingHorizontal: contentPad },
-            ]}
-            columnWrapperStyle={columns > 1 ? styles.row : undefined}
-            keyboardShouldPersistTaps="handled"
-            onEndReached={loadMore}
-            onEndReachedThreshold={0.4}
-            ListEmptyComponent={
+        <FlatList
+          data={items}
+          key={`${columns}-${locale}`}
+          numColumns={columns}
+          keyExtractor={(item) => item.id}
+          ListHeaderComponent={listHeader}
+          contentContainerStyle={[
+            styles.list,
+            !isDesktop && { paddingHorizontal: contentPad },
+          ]}
+          columnWrapperStyle={columns > 1 ? styles.row : undefined}
+          keyboardShouldPersistTaps="handled"
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.4}
+          ListEmptyComponent={
+            loading ? (
+              <ActivityIndicator color={colors.brand} style={{ marginTop: 40 }} />
+            ) : (
               <EmptyState
                 title={t('search.emptyTitle')}
                 subtitle={
@@ -370,26 +379,26 @@ export default function SearchScreen() {
                 actionLabel={activeFilterCount ? t('search.resetFilters') : undefined}
                 onAction={activeFilterCount ? clearFilters : undefined}
               />
-            }
-            ListFooterComponent={
-              loadingMore ? (
-                <ActivityIndicator color={colors.brand} style={{ marginVertical: 16 }} />
-              ) : hasMore && items.length ? (
-                <Button
-                  label={t('search.loadMore')}
-                  variant="secondary"
-                  onPress={loadMore}
-                  style={{ marginTop: spacing.md }}
-                />
-              ) : undefined
-            }
-            renderItem={({ item }) => (
-              <View style={columns > 1 ? styles.cardFlex : null}>
-                <ListingCard listing={item} />
-              </View>
-            )}
-          />
-        )}
+            )
+          }
+          ListFooterComponent={
+            loadingMore ? (
+              <ActivityIndicator color={colors.brand} style={{ marginVertical: 16 }} />
+            ) : hasMore && items.length ? (
+              <Button
+                label={t('search.loadMore')}
+                variant="secondary"
+                onPress={loadMore}
+                style={{ marginTop: spacing.md }}
+              />
+            ) : undefined
+          }
+          renderItem={({ item }) => (
+            <View style={columns > 1 ? styles.cardFlex : null}>
+              <ListingCard listing={item} />
+            </View>
+          )}
+        />
       </View>
     </View>
   );
@@ -408,10 +417,14 @@ const styles = StyleSheet.create({
   desktopSidebar: {
     width: 280,
     flexShrink: 0,
+    alignSelf: 'stretch',
+    maxHeight: '100%',
     backgroundColor: colors.bgElevated,
     borderRadius: radii.xl,
     borderWidth: 1,
     borderColor: colors.line,
+  },
+  desktopSidebarContent: {
     padding: spacing.md,
     gap: spacing.sm,
   },
