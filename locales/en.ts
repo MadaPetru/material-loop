@@ -414,8 +414,6 @@ const en: TranslationDict = {
     removeFavorite: 'Saved',
     share: 'Share',
     contactSeller: 'Contact seller',
-    seedBadge: 'Sample / already offered',
-    seedContactBlocked: 'This is a sample listing used to populate the feed. Contact is disabled.',
     edit: 'Edit listing',
     manageTitle: 'Manage listing',
     statusHint: 'Update status',

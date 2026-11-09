@@ -4,7 +4,6 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocale } from '@/contexts/LocaleContext';
 import { resolveListingCoverUrl } from '@/lib/defaultListingPhoto';
 import { formatPrice, formatQuantity, statusLabel } from '@/lib/labels';
-import { isSeedOfferedListing } from '@/lib/listingVisibility';
 import { colors, fonts, radii, shadows, spacing } from '@/lib/theme';
 import type { ListingWithRelations } from '@/lib/types';
 import { formatCityCounty } from '@/data/romania';
@@ -22,8 +21,12 @@ export function ListingCard({ listing }: { listing: ListingWithRelations }) {
   const qty = formatQuantity(listing.quantity, listing.unit);
   const distance =
     listing.distanceKm != null ? ` · ${listing.distanceKm.toFixed(0)} km` : '';
-  const seedOffered = isSeedOfferedListing(listing);
-  const offeredLabel = seedOffered ? statusLabel(listing.status) : null;
+  const closedStatus =
+    listing.status === 'sold' ||
+    listing.status === 'given_away' ||
+    listing.status === 'reserved'
+      ? statusLabel(listing.status)
+      : null;
 
   return (
     <Link href={`/listing/${listing.id}`} asChild>
@@ -34,16 +37,14 @@ export function ListingCard({ listing }: { listing: ListingWithRelations }) {
       >
         <View style={styles.imageWrap}>
           <Image source={{ uri: photo }} style={styles.image} contentFit="cover" transition={200} />
-          {listing.isFree ? (
+          {listing.isFree && !closedStatus ? (
             <View style={styles.badge}>
               <Text style={styles.badgeText}>{t('common.free')}</Text>
             </View>
           ) : null}
-          {listing.isSeed ? (
-            <View style={[styles.badge, styles.seedBadge, listing.isFree && styles.seedBadgeOffset]}>
-              <Text style={styles.badgeText}>
-                {offeredLabel ? `${t('listing.seedBadge')} · ${offeredLabel}` : t('listing.seedBadge')}
-              </Text>
+          {closedStatus ? (
+            <View style={[styles.badge, styles.statusBadge]}>
+              <Text style={styles.badgeText}>{closedStatus}</Text>
             </View>
           ) : null}
         </View>
@@ -55,7 +56,6 @@ export function ListingCard({ listing }: { listing: ListingWithRelations }) {
           <Text style={styles.meta} numberOfLines={1}>
             {qty} · {place}
             {distance}
-            {offeredLabel ? ` · ${offeredLabel}` : ''}
           </Text>
         </View>
       </Pressable>
@@ -89,11 +89,8 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     borderRadius: radii.pill,
   },
-  seedBadge: {
+  statusBadge: {
     backgroundColor: colors.accent,
-  },
-  seedBadgeOffset: {
-    top: spacing.md + 28,
   },
   badgeText: { color: colors.white, fontFamily: fonts.sansBold, fontSize: 12 },
   body: { padding: spacing.lg, gap: spacing.xs },

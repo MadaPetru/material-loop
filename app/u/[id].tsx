@@ -5,6 +5,7 @@ import { ListingCard } from '@/components/listings/ListingCard';
 import { formatCityCounty } from '@/data/romania';
 import { marketplace } from '@/lib/api/marketplace';
 import { isPublicFeedListing } from '@/lib/listingVisibility';
+import { publicFacingText } from '@/lib/publicListingCopy';
 import { colors, fonts, spacing } from '@/lib/theme';
 import type { ListingWithRelations, Profile } from '@/lib/types';
 
@@ -50,7 +51,9 @@ export default function SellerProfileScreen() {
               ? `★ ${profile.sellerRating.toFixed(1)} (${profile.ratingCount}) · ${profile.completedSales} vânzări`
               : 'Fără rating încă'}
           </Text>
-          {profile.bio ? <Text style={styles.bio}>{profile.bio}</Text> : null}
+          {publicFacingText(profile.bio, profile.isSeed) ? (
+            <Text style={styles.bio}>{publicFacingText(profile.bio, profile.isSeed)}</Text>
+          ) : null}
           <Text style={styles.section}>Anunțuri active ({listings.length})</Text>
         </View>
       }

@@ -415,8 +415,6 @@ const ro: TranslationDict = {
     removeFavorite: 'Salvat',
     share: 'Distribuie',
     contactSeller: 'Contactează vânzătorul',
-    seedBadge: 'Exemplu / deja oferit',
-    seedContactBlocked: 'Acesta este un anunț exemplu pentru popularea feed-ului. Contactul este dezactivat.',
     edit: 'Editează anunțul',
     manageTitle: 'Gestionează anunțul',
     statusHint: 'Schimbă statusul',

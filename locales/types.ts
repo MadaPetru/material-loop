@@ -406,8 +406,6 @@ export type TranslationDict = {
     removeFavorite: string;
     share: string;
     contactSeller: string;
-    seedBadge: string;
-    seedContactBlocked: string;
     edit: string;
     manageTitle: string;
     statusHint: string;

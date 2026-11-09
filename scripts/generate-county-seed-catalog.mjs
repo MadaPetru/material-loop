@@ -42,7 +42,7 @@ const MATERIALS = [
   {
     title: (city) => `Saci ciment rămași — ${city}`,
     description:
-      'Anunț exemplu MaterialLoop: saci de ciment rămași după renovare. Stoc demonstrativ pentru județ.',
+      'Saci de ciment rămași după renovare, depozitați uscat. Prefer ridicare rapidă.',
     categoryId: 'cat-cement',
     subcategoryId: 'sub-cement',
     brand: 'Holcim',
@@ -58,8 +58,7 @@ const MATERIALS = [
   },
   {
     title: (city) => `Plăci gresie surplus — ${city}`,
-    description:
-      'Anunț exemplu: plăci de gresie rămase din baie. Contactul este dezactivat pe listările seed.',
+    description: 'Plăci de gresie rămase din baie, potrivite pentru reparații sau un proiect mic.',
     categoryId: 'cat-tiles',
     subcategoryId: 'sub-ceramic',
     brand: null,
@@ -75,8 +74,7 @@ const MATERIALS = [
   },
   {
     title: (city) => `Vopsea interior gratuită — ${city}`,
-    description:
-      'Anunț exemplu: găleată de vopsea interioară deschisă, încă bună. Listare demonstrativă.',
+    description: 'Găleată de vopsea interioară deschisă, încă bună. Ridicare din curte.',
     categoryId: 'cat-paint',
     subcategoryId: 'sub-int-paint',
     brand: 'Savana',
@@ -92,8 +90,7 @@ const MATERIALS = [
   },
   {
     title: (city) => `EPS izolație resturi — ${city}`,
-    description:
-      'Anunț exemplu: plăci EPS rămase după termoizolație. Doar pentru popularea feed-ului.',
+    description: 'Plăci EPS rămase după termoizolație, ambalaj în stare bună.',
     categoryId: 'cat-insulation',
     subcategoryId: 'sub-eps',
     brand: null,
@@ -109,8 +106,7 @@ const MATERIALS = [
   },
   {
     title: (city) => `Cherestea scurtă — ${city}`,
-    description:
-      'Anunț exemplu: resturi de cherestea de construcții. Listare seed, deja ofertată sau activă demonstrativ.',
+    description: 'Resturi de cherestea de construcții, uscate, lungimi mixte.',
     categoryId: 'cat-wood',
     subcategoryId: 'sub-timber',
     brand: null,
@@ -126,8 +122,7 @@ const MATERIALS = [
   },
   {
     title: (city) => `Țevi PPR rămase — ${city}`,
-    description:
-      'Anunț exemplu: țevi și fitinguri rămase din instalație. MaterialLoop seed inventory.',
+    description: 'Țevi și fitinguri rămase din instalație, nefolosite.',
     categoryId: 'cat-plumbing',
     subcategoryId: 'sub-pipes',
     brand: 'Valrom',
@@ -151,7 +146,18 @@ const SELLER_NAMES = [
   'Materiale Județene',
   'Eco Șantier',
   'Depozit Temporar',
-  'Ofertă Demo',
+  'Ofertă Locală',
+];
+
+const SELLER_BIOS = [
+  'Renovări și surplus de materiale din lucrări recente.',
+  'Firmă locală — vindem ce rămâne de pe șantier.',
+  'Depozit temporar de materiale rămase după amenajări.',
+  'Atelier de renovări — ofer surplusul nefolosit.',
+  'Materiale rămase din proiecte din județ.',
+  'Recuperăm și redistribuim surplus de șantier.',
+  'Depozitare pe termen scurt, ridicare locală.',
+  'Ofer materiale rămase după renovări casnice.',
 ];
 
 function padHex(n, width) {
@@ -206,7 +212,7 @@ function main() {
     accountType: i % 2 === 0 ? 'business' : 'individual',
     roles: ['user'],
     cityId: city.id,
-    bio: 'Cont exemplu MaterialLoop — listări demonstrative pe județe. Nu prelua comenzi reale.',
+    bio: SELLER_BIOS[i],
     lat: city.lat,
     lng: city.lng,
     sellerRating: 4.5,
@@ -238,7 +244,7 @@ function main() {
         photoUuid: photoUuid(seq),
         sellerDemoId: seller.demoId,
         title: material.title(city.name),
-        description: `${material.description} Județ: ${county.name}.`,
+        description: `${material.description} Locație: ${city.name}, județul ${county.name}.`,
         categoryId: material.categoryId,
         subcategoryId: material.subcategoryId,
         brand: material.brand,
@@ -255,7 +261,7 @@ function main() {
         lng: city.lng,
         pickupAvailable: true,
         deliveryAvailable: false,
-        storageNotes: 'Listare exemplu — deja oferită / încheiată (seed). Contact dezactivat.',
+        storageNotes: 'Depozitat uscat; ridicare din curte după programare.',
         publishedAt: publishedDaysAgo(7 + ((countyIndex + i) % 40)),
         expiresInDays: 60,
         photoLabel: material.photoLabel,

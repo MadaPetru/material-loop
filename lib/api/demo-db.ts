@@ -933,6 +933,10 @@ export const demoDb = {
     }
     const listing = state.listings.find((l) => l.id === params.listingId);
     if (!listing) throw new Error('Anunțul nu a fost găsit.');
+    const seller = state.profiles.find((p) => p.id === listing.sellerId);
+    if (listing.status !== 'active' || listing.isSeed || seller?.isSeed) {
+      throw new Error('Contactul nu este disponibil pentru acest anunț.');
+    }
 
     let conversation = state.conversations.find(
       (c) => c.listingId === params.listingId && c.buyerId === params.buyerId

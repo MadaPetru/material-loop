@@ -1165,6 +1165,31 @@ export const supabaseDb = {
       throw new Error('Nu poți contacta propriul anunț.');
     }
 
+    const { data: listingRow, error: listingError } = await client()
+      .from('listings')
+      .select('status, is_seed, seller_id')
+      .eq('id', params.listingId)
+      .maybeSingle();
+    if (listingError) throw new Error(listingError.message);
+    if (!listingRow) throw new Error('Anunțul nu a fost găsit.');
+
+    let sellerIsSeed = false;
+    if (listingRow.seller_id) {
+      const { data: sellerRow } = await client()
+        .from('profiles')
+        .select('is_seed')
+        .eq('id', listingRow.seller_id)
+        .maybeSingle();
+      sellerIsSeed = !!sellerRow?.is_seed;
+    }
+    if (
+      listingRow.status !== 'active' ||
+      !!listingRow.is_seed ||
+      sellerIsSeed
+    ) {
+      throw new Error('Contactul nu este disponibil pentru acest anunț.');
+    }
+
     const { data: existing } = await client()
       .from('conversations')
       .select('*')
