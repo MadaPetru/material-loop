@@ -59,6 +59,16 @@ export type TranslationDict = {
     emptySub: string;
     emptyFilteredSub: string;
   };
+  locationPicker: {
+    county: string;
+    locality: string;
+    countySearch: string;
+    localitySearch: string;
+    noCounties: string;
+    noLocalities: string;
+    prev: string;
+    next: string;
+  };
   sell: {
     eyebrow: string;
     title: string;

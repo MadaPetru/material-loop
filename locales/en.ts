@@ -60,6 +60,16 @@ const en: TranslationDict = {
     emptySub: 'Try another locality, a larger radius, or “Whole country”.',
     emptyFilteredSub: 'Nothing matches these filters. Reset or change your search.',
   },
+  locationPicker: {
+    county: 'County',
+    locality: 'Locality',
+    countySearch: 'Search county...',
+    localitySearch: 'Search locality...',
+    noCounties: 'No counties found.',
+    noLocalities: 'No localities found.',
+    prev: 'Previous in list',
+    next: 'Next in list',
+  },
   sell: {
     eyebrow: 'Quick sell',
     title: 'Post leftover material',

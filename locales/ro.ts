@@ -60,6 +60,16 @@ const ro: TranslationDict = {
     emptySub: 'Încearcă altă localitate, o rază mai mare sau „Toată țara”.',
     emptyFilteredSub: 'Nimic pe aceste filtre. Resetează sau schimbă căutarea.',
   },
+  locationPicker: {
+    county: 'Județ',
+    locality: 'Localitate',
+    countySearch: 'Caută județ...',
+    localitySearch: 'Caută localitate...',
+    noCounties: 'Niciun județ găsit.',
+    noLocalities: 'Nicio localitate găsită.',
+    prev: 'Înapoi în listă',
+    next: 'Înainte în listă',
+  },
   sell: {
     eyebrow: 'Vânzare rapidă',
     title: 'Publică un material rămas',
