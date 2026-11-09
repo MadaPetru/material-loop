@@ -406,6 +406,12 @@ export type TranslationDict = {
     removeFavorite: string;
     share: string;
     contactSeller: string;
+    unavailableSold: string;
+    unavailableGiven: string;
+    unavailableReserved: string;
+    unavailableShortSold: string;
+    unavailableShortGiven: string;
+    unavailableShortReserved: string;
     edit: string;
     manageTitle: string;
     statusHint: string;

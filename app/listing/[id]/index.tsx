@@ -138,6 +138,20 @@ export default function ListingDetailScreen() {
           ) : null}
         </View>
 
+        {!canContactListing(listing) && !isOwner ? (
+          <View style={styles.unavailableBanner}>
+            <Text style={styles.unavailableBannerText}>
+              {listing.status === 'sold'
+                ? t('listing.unavailableSold')
+                : listing.status === 'given_away'
+                  ? t('listing.unavailableGiven')
+                  : listing.status === 'reserved'
+                    ? t('listing.unavailableReserved')
+                    : t('listing.unavailableSold')}
+            </Text>
+          </View>
+        ) : null}
+
         <Text style={styles.meta}>
           {formatQuantity(listing.quantity, listing.unit)} · {conditionLabels[listing.condition]}
         </Text>
@@ -334,6 +348,21 @@ const styles = StyleSheet.create({
   statusPillText: { fontFamily: fonts.sansBold, color: colors.brandDark, fontSize: 12 },
   freePill: { backgroundColor: colors.accentSoft },
   freePillText: { color: colors.accent },
+  unavailableBanner: {
+    marginTop: spacing.sm,
+    backgroundColor: colors.accentSoft,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  unavailableBannerText: {
+    fontFamily: fonts.sansMedium,
+    color: colors.ink,
+    fontSize: 14,
+    lineHeight: 20,
+  },
   meta: { fontFamily: fonts.sans, color: colors.inkMuted, fontSize: 14, lineHeight: 20 },
   section: {
     fontFamily: fonts.display,
