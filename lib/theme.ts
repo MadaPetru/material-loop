@@ -63,7 +63,7 @@ export const layout = {
   mobileMax: 639,
   tabletMin: 640,
   desktopMin: 1024,
-  contentMax: 1120,
+  contentMax: 1320,
   contentNarrow: 480,
   gutterMobile: spacing.lg,
   gutterDesktop: spacing.xxl,

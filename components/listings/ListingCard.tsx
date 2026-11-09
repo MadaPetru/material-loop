@@ -65,6 +65,7 @@ export function ListingCard({ listing }: { listing: ListingWithRelations }) {
 
 const styles = StyleSheet.create({
   card: {
+    width: '100%',
     backgroundColor: colors.bgElevated,
     borderRadius: radii.lg,
     overflow: 'hidden',
@@ -73,7 +74,11 @@ const styles = StyleSheet.create({
     ...shadows.soft,
   },
   pressed: { opacity: 0.94, transform: [{ translateY: 1 }] },
-  imageWrap: { height: 168, backgroundColor: colors.mapDust },
+  imageWrap: {
+    width: '100%',
+    aspectRatio: 4 / 3,
+    backgroundColor: colors.mapDust,
+  },
   image: { width: '100%', height: '100%' },
   badge: {
     position: 'absolute',

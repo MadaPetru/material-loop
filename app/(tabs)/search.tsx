@@ -104,7 +104,9 @@ const PAGE_SIZE = 24;
 
 export default function SearchScreen() {
   const { t, locale } = useLocale();
-  const { columns, isDesktop, contentPad } = useResponsive();
+  const { columns, isDesktop, isTablet, contentPad } = useResponsive();
+  // Sidebar eats width on desktop — prefer 2 roomy cards over 3 cramped ones.
+  const gridColumns = isDesktop ? 2 : isTablet ? 2 : columns;
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [countyId, setCountyId] = useState<string | null>(null);
@@ -352,16 +354,18 @@ export default function SearchScreen() {
 
       <View style={styles.main}>
         <FlatList
+          style={styles.listView}
           data={items}
-          key={`${columns}-${locale}`}
-          numColumns={columns}
+          key={`${gridColumns}-${locale}`}
+          numColumns={gridColumns}
           keyExtractor={(item) => item.id}
           ListHeaderComponent={listHeader}
           contentContainerStyle={[
             styles.list,
             !isDesktop && { paddingHorizontal: contentPad },
+            isDesktop && styles.listDesktop,
           ]}
-          columnWrapperStyle={columns > 1 ? styles.row : undefined}
+          columnWrapperStyle={gridColumns > 1 ? styles.row : undefined}
           keyboardShouldPersistTaps="handled"
           onEndReached={loadMore}
           onEndReachedThreshold={0.4}
@@ -394,7 +398,7 @@ export default function SearchScreen() {
             ) : undefined
           }
           renderItem={({ item }) => (
-            <View style={columns > 1 ? styles.cardFlex : null}>
+            <View style={gridColumns > 1 ? styles.cardFlex : undefined}>
               <ListingCard listing={item} />
             </View>
           )}
@@ -408,16 +412,17 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   rootDesktop: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing.lg,
+    alignItems: 'stretch',
+    gap: spacing.xl,
     maxWidth: layout.contentMax,
     width: '100%',
     alignSelf: 'center',
+    paddingBottom: spacing.lg,
   },
   desktopSidebar: {
-    width: 280,
+    width: 260,
+    flexGrow: 0,
     flexShrink: 0,
-    alignSelf: 'stretch',
     maxHeight: '100%',
     backgroundColor: colors.bgElevated,
     borderRadius: radii.xl,
@@ -427,6 +432,7 @@ const styles = StyleSheet.create({
   desktopSidebarContent: {
     padding: spacing.md,
     gap: spacing.sm,
+    paddingBottom: spacing.xl,
   },
   sidebarTitle: {
     fontFamily: fonts.display,
@@ -434,6 +440,7 @@ const styles = StyleSheet.create({
     color: colors.ink,
   },
   main: { flex: 1, minWidth: 0 },
+  listView: { flex: 1, width: '100%' },
   topBar: {
     gap: spacing.sm,
     paddingTop: spacing.sm,
@@ -493,6 +500,7 @@ const styles = StyleSheet.create({
   clearLink: { fontFamily: fonts.sansMedium, color: colors.accent, fontSize: 13 },
   count: { fontFamily: fonts.sans, color: colors.inkMuted, fontSize: 13 },
   list: { paddingBottom: 48, gap: spacing.lg },
-  row: { gap: spacing.lg },
-  cardFlex: { flex: 1 },
+  listDesktop: { gap: spacing.xl, paddingBottom: spacing.xxxl },
+  row: { gap: spacing.xl },
+  cardFlex: { flex: 1, minWidth: 0 },
 });
