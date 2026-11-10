@@ -371,6 +371,18 @@ export type TranslationDict = {
     resetSuccess: string;
     forgotDemo: string;
     forgotUnavailable: string;
+    resetTitle: string;
+    resetSub: string;
+    newPassword: string;
+    confirmPassword: string;
+    passwordMismatch: string;
+    savePassword: string;
+    savingPassword: string;
+    resetDone: string;
+    resetSessionMissing: string;
+    requestNewLink: string;
+    backToLogin: string;
+    checkEmailToContinue: string;
     legalNoticeBefore: string;
     legalNoticeAfter: string;
   };

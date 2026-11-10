@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
+import { router, type Href } from 'expo-router';
 import { marketplace } from '@/lib/api/marketplace';
 import {
   hasAllEntitlements,
@@ -31,6 +32,7 @@ type AuthContextValue = {
   /** Returns null on web while the browser redirects to Google. */
   signInWithGoogle: () => Promise<Profile | null>;
   signOut: () => Promise<void>;
+  updatePassword: (password: string) => Promise<void>;
   updateProfile: (patch: Partial<Profile>) => Promise<void>;
   requestPhoneVerification: (phone: string) => Promise<{ phone: string; demoCode?: string }>;
   confirmPhoneVerification: (phone: string, token: string) => Promise<void>;
@@ -95,6 +97,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(null);
         return;
       }
+      if (event === 'PASSWORD_RECOVERY') {
+        try {
+          router.replace('/(auth)/reset-password' as Href);
+        } catch {
+          /* navigation may be unavailable during early boot */
+        }
+      }
       try {
         try {
           await marketplace.loadRoleCatalog();
@@ -146,6 +155,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signOut: async () => {
         await marketplace.signOut();
         setUser(null);
+      },
+      updatePassword: async (password) => {
+        await marketplace.updatePassword(password);
       },
       updateProfile: async (patch) => {
         if (!user) return;

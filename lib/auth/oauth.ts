@@ -1,50 +1,24 @@
-import Constants, { ExecutionEnvironment } from 'expo-constants';
-import { makeRedirectUri } from 'expo-auth-session';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { Platform } from 'react-native';
-import { APP_SCHEME } from '@/lib/config';
+import { getAuthRedirectTo } from '@/lib/auth/redirect';
 import { getSupabase } from '@/lib/supabase';
 
 /** Completes popup/tab auth on web when using openAuthSessionAsync. */
 WebBrowser.maybeCompleteAuthSession();
 
-function isExpoGo() {
-  return (
-    Constants.appOwnership === 'expo' ||
-    Constants.executionEnvironment === ExecutionEnvironment.StoreClient
-  );
-}
-
-/**
- * Redirect after Google OAuth.
- * Web → current origin `/login` (PKCE + detectSessionInUrl).
- * Expo Go → `exp://…/--/login` only (custom schemes like materialloop:// never return to Expo Go).
- * Dev/production builds → `materialloop://login`.
- */
+/** Google OAuth redirect — same platform rules as password recovery. */
 export function getOAuthRedirectTo() {
-  if (Platform.OS === 'web' && typeof window !== 'undefined') {
-    return `${window.location.origin}/login`;
-  }
-
-  // Expo Go does not own `materialloop://`. Using it makes openAuthSessionAsync hang forever.
-  if (isExpoGo()) {
-    return Linking.createURL('login');
-  }
-
-  return makeRedirectUri({
-    scheme: APP_SCHEME,
-    path: 'login',
-    native: `${APP_SCHEME}://login`,
-  });
+  return getAuthRedirectTo('login');
 }
 
-function urlLooksLikeAuthCallback(url: string) {
+export function urlLooksLikeAuthCallback(url: string) {
   return (
     url.includes('code=') ||
     url.includes('access_token=') ||
     url.includes('error=') ||
-    url.includes('error_code=')
+    url.includes('error_code=') ||
+    url.includes('type=recovery')
   );
 }
 

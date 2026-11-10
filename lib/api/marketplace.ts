@@ -18,6 +18,7 @@ export const marketplace = {
     api.signUp(email, password, displayName),
   signIn: (email: string, password: string) => api.signIn(email, password),
   signOut: () => api.signOut(),
+  updatePassword: (password: string) => api.updatePassword(password),
   signInWithGoogle: async () => {
     if (IS_DEMO) {
       throw new Error(

@@ -2,12 +2,14 @@ import { Platform } from 'react-native';
 import type { User } from '@supabase/supabase-js';
 import { CATEGORIES, SUBCATEGORIES } from '@/data/categories';
 import { COUNTRY_RO, COUNTIES, CITIES, getCity } from '@/data/romania';
+import { AUTH_EMAIL_CONFIRM_REQUIRED } from '@/lib/auth/errors';
 import {
   createSessionFromUrl,
   getOAuthRedirectTo,
   oauthErrorMessage,
   openOAuthSession,
 } from '@/lib/auth/oauth';
+import { getAuthRedirectTo } from '@/lib/auth/redirect';
 import { approximateCoords, daysFromNow, haversineKm } from '@/lib/geo';
 import { LISTING_EXPIRY_DAYS } from '@/lib/config';
 import {
@@ -217,18 +219,28 @@ export const supabaseDb = {
     const { data, error } = await client().auth.signUp({
       email,
       password,
-      options: { data: { display_name: displayName } },
+      options: {
+        data: { display_name: displayName },
+        emailRedirectTo: getAuthRedirectTo('login'),
+      },
     });
     if (error) throw new Error(error.message);
     if (!data.user) throw new Error('Nu s-a putut crea contul.');
-    // Email confirmation may leave session null — still create profile when session exists.
+    // Email confirmation may leave session null — profile is created by DB trigger.
     if (data.session) {
       return ensureProfile(data.user.id, email, displayName, avatarFromUser(data.user));
     }
-    // Profile insert requires auth.uid(); create after first confirmed sign-in.
-    throw new Error(
-      'Cont creat. Verifică emailul pentru confirmare, apoi autentifică-te.'
-    );
+    throw new Error(AUTH_EMAIL_CONFIRM_REQUIRED);
+  },
+
+  async updatePassword(password: string) {
+    const { data: sessionData, error: sessionError } = await client().auth.getSession();
+    if (sessionError) throw new Error(sessionError.message);
+    if (!sessionData.session) {
+      throw new Error('Autentifică-te din nou pentru a schimba parola.');
+    }
+    const { error } = await client().auth.updateUser({ password });
+    if (error) throw new Error(error.message);
   },
 
   async signIn(email: string, password: string) {

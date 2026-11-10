@@ -15,6 +15,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 import '@/lib/cryptoPolyfill';
+import { AuthDeepLinkHandler } from '@/components/auth/AuthDeepLinkHandler';
 import { CookieConsentBanner } from '@/components/legal/CookieConsentBanner';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ConsentProvider } from '@/contexts/ConsentContext';
@@ -57,6 +58,7 @@ export default function RootLayout() {
           <AuthProvider>
             <UnreadMessagesProvider>
               <StatusBar style="dark" />
+              <AuthDeepLinkHandler />
               <RootNavigator />
               <CookieConsentBanner />
             </UnreadMessagesProvider>
@@ -84,6 +86,7 @@ function RootNavigator() {
       <Stack.Screen name="(auth)/login" options={{ title: t('nav.login') }} />
       <Stack.Screen name="(auth)/register" options={{ title: t('auth.createAccount') }} />
       <Stack.Screen name="(auth)/forgot-password" options={{ title: t('auth.forgotTitle') }} />
+      <Stack.Screen name="(auth)/reset-password" options={{ title: t('auth.resetTitle') }} />
       <Stack.Screen name="listing/[id]" options={{ title: t('messages.listingFallback') }} />
       <Stack.Screen name="listing/create" options={{ title: t('home.publish') }} />
       <Stack.Screen name="listing/[id]/edit" options={{ title: t('listing.edit') }} />

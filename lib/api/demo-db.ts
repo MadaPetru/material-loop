@@ -359,6 +359,14 @@ export const demoDb = {
     await save();
   },
 
+  async updatePassword(password: string) {
+    const state = await load();
+    const me = state.profiles.find((p) => p.id === state.sessionUserId);
+    if (!me) throw new Error('Autentifică-te din nou pentru a schimba parola.');
+    state.passwords[me.email.toLowerCase()] = password;
+    await save();
+  },
+
   async updateProfile(userId: string, patch: Partial<Profile>) {
     const state = await load();
     const me = state.profiles.find((p) => p.id === state.sessionUserId) ?? null;

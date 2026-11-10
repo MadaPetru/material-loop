@@ -21,7 +21,10 @@ const PATTERNS: Array<{ test: RegExp; key: string }> = [
   { test: /email.*already|already.*registered|user already|Există deja|already exists/i, key: 'errors.emailExists' },
   { test: /password.*(weak|short|at least|least 6)|Minim 6|at least 6/i, key: 'errors.weakPassword' },
   { test: /network|fetch failed|failed to fetch|timeout|conexiune/i, key: 'errors.network' },
-  { test: /email not confirmed|confirm.*(email|signup)/i, key: 'errors.emailConfirm' },
+  {
+    test: /EMAIL_CONFIRM_REQUIRED|email not confirmed|confirm.*(email|signup)|Verifică emailul/i,
+    key: 'errors.emailConfirm',
+  },
   { test: /redirect url|redirect_uri|oauth.*cancel|access_denied|întrerupt|cancelled/i, key: 'errors.googleInterrupted' },
   { test: /EXPO_PUBLIC_SUPABASE|necesită Supabase|vezi README|nu este configurat|isn't available/i, key: 'errors.googleUnavailable' },
   { test: /row.level.security|permission denied|violates|permisiunea/i, key: 'errors.permission' },

@@ -1,16 +1,17 @@
+import { Link } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, Text } from 'react-native';
+import { Pressable, StyleSheet, Text } from 'react-native';
 import { Button } from '@/components/ui/Button';
 import { ErrorBanner } from '@/components/ui/ErrorBanner';
 import { Input } from '@/components/ui/Input';
 import { LanguageSelector } from '@/components/ui/LanguageSelector';
 import { Screen } from '@/components/ui/Screen';
 import { useLocale } from '@/contexts/LocaleContext';
-import { getSupabase } from '@/lib/supabase';
+import { getAuthRedirectTo } from '@/lib/auth/redirect';
 import { marketplace } from '@/lib/api/marketplace';
-import { colors, fonts } from '@/lib/theme';
+import { getSupabase } from '@/lib/supabase';
+import { colors, fonts, spacing } from '@/lib/theme';
 import { toUserError } from '@/lib/userErrors';
-import * as Linking from 'expo-linking';
 
 export default function ForgotPasswordScreen() {
   const { t } = useLocale();
@@ -39,7 +40,7 @@ export default function ForgotPasswordScreen() {
 
     setBusy(true);
     try {
-      const redirectTo = Linking.createURL('/(auth)/login');
+      const redirectTo = getAuthRedirectTo('reset-password');
       const { error: resetError } = await sb.auth.resetPasswordForEmail(email.trim(), {
         redirectTo,
       });
@@ -59,25 +60,37 @@ export default function ForgotPasswordScreen() {
       <Text style={styles.sub}>{t('auth.forgotSub')}</Text>
       <ErrorBanner message={error} />
       {done ? (
-        <Text style={styles.success}>{t('auth.resetSuccess', { email: email.trim() })}</Text>
+        <>
+          <Text style={styles.success}>{t('auth.resetSuccess', { email: email.trim() })}</Text>
+          <Link href="/(auth)/login" asChild>
+            <Pressable>
+              <Text style={styles.link}>{t('auth.backToLogin')}</Text>
+            </Pressable>
+          </Link>
+        </>
       ) : (
         <>
           <Input
             label={t('auth.email')}
             autoCapitalize="none"
             keyboardType="email-address"
+            autoComplete="email"
             value={email}
             onChangeText={(v) => {
               setEmail(v);
               setError(null);
             }}
-            error={error && !email.includes('@') ? error : undefined}
           />
           <Button
             label={busy ? t('auth.sending') : t('auth.sendLink')}
             onPress={onSubmit}
             disabled={busy}
           />
+          <Link href="/(auth)/login" asChild>
+            <Pressable>
+              <Text style={styles.link}>{t('auth.backToLogin')}</Text>
+            </Pressable>
+          </Link>
         </>
       )}
     </Screen>
@@ -94,5 +107,12 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     lineHeight: 22,
+    marginBottom: spacing.sm,
+  },
+  link: {
+    fontFamily: fonts.sansMedium,
+    color: colors.brand,
+    textAlign: 'center',
+    marginTop: spacing.sm,
   },
 });
