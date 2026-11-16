@@ -23,6 +23,7 @@ import { LocaleProvider, useLocale } from '@/contexts/LocaleContext';
 import { UnreadMessagesProvider } from '@/contexts/UnreadMessagesContext';
 import '@/lib/auth/oauth';
 import { colors } from '@/lib/theme';
+import { Analytics } from '@vercel/analytics/react';
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -61,6 +62,7 @@ export default function RootLayout() {
               <AuthDeepLinkHandler />
               <RootNavigator />
               <CookieConsentBanner />
+              <Analytics />
             </UnreadMessagesProvider>
           </AuthProvider>
         </ConsentProvider>

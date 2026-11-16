@@ -9,6 +9,7 @@
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-navigation/native": "^7.5.1",
     "@supabase/supabase-js": "^2.118.0",
+    "@vercel/analytics": "^2.0.1",
     "expo": "~58.0.23",
     "expo-auth-session": "~58.0.17",
     "expo-constants": "~58.0.14",
