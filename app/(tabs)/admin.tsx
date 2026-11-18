@@ -20,7 +20,7 @@ import { ErrorBanner } from '@/components/ui/ErrorBanner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocale } from '@/contexts/LocaleContext';
 import { marketplace } from '@/lib/api/marketplace';
-import { buildAdminUserMailto } from '@/lib/contact';
+import { buildAdminUserGmailComposeUrl } from '@/lib/contact';
 import {
   ENTITLEMENT_GROUPS,
   filterKnownEntitlements,
@@ -370,7 +370,9 @@ export default function AdminScreen() {
   const sendMail = async () => {
     if (!mailTarget?.length || !user) return;
     try {
-      const url = buildAdminUserMailto({
+      // Open Gmail web compose directly — Windows MAILTO defaults are often broken
+      // after switching the default email app (e.g. nothing opens).
+      const url = buildAdminUserGmailComposeUrl({
         toEmail: mailTarget.map((p) => p.email),
         subject: mailSubject,
         message: mailBody,

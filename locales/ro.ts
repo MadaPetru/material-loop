@@ -340,8 +340,9 @@ const ro: TranslationDict = {
     composeEmail: 'Finalizează mesajul',
     emailSubject: 'Subiect',
     emailBody: 'Mesaj',
-    openMail: 'Deschide aplicația de email',
-    mailtoHint: 'Se deschide aplicația ta de email cu destinatarul, subiectul și mesajul deja completate.',
+    openMail: 'Deschide în Gmail',
+    mailtoHint:
+      'Se deschide Gmail în browser: tu în To, destinatarii în BCC, subiectul și mesajul completate. Apasă Trimite în Gmail ca să plece mailul.',
     deactivate: 'Dezactivează',
     reactivate: 'Reactivează',
     deactivateTitle: 'Dezactivezi contul?',

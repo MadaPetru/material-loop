@@ -41,15 +41,16 @@ export function buildContactMailto(params: {
   return `mailto:${SUPPORT_EMAIL}?${query}`;
 }
 
-/** Admin / marketing → user email draft (opens local mail client). */
-export function buildAdminUserMailto(params: {
+type AdminMailDraftParams = {
   toEmail: string | string[];
   subject?: string;
   message?: string;
   adminName?: string | null;
   /** Visible To address; all user recipients go to BCC only. */
   adminEmail?: string | null;
-}) {
+};
+
+function buildAdminMailDraft(params: AdminMailDraftParams) {
   const emails = (Array.isArray(params.toEmail) ? params.toEmail : [params.toEmail])
     .map((e) => e.trim())
     .filter(Boolean);
@@ -70,10 +71,33 @@ export function buildAdminUserMailto(params: {
   // Visible To is the admin (or support) address — not a user recipient.
   const visibleTo = params.adminEmail?.trim() || SUPPORT_EMAIL;
   const bcc = emails.filter((e) => e.toLowerCase() !== visibleTo.toLowerCase());
+  return { subject, body, visibleTo, bcc };
+}
+
+/** Admin / marketing → user email draft (opens local mail client). */
+export function buildAdminUserMailto(params: AdminMailDraftParams) {
+  const { subject, body, visibleTo, bcc } = buildAdminMailDraft(params);
   const parts = [
     `subject=${encodeURIComponent(subject)}`,
     `body=${encodeURIComponent(body)}`,
     `bcc=${encodeURIComponent(bcc.join(','))}`,
   ];
   return `mailto:${encodeURIComponent(visibleTo)}?${parts.join('&')}`;
+}
+
+/**
+ * Admin / marketing → Gmail web compose (avoids broken Windows MAILTO handlers).
+ * Opens in the browser; recipients stay in BCC only.
+ */
+export function buildAdminUserGmailComposeUrl(params: AdminMailDraftParams) {
+  const { subject, body, visibleTo, bcc } = buildAdminMailDraft(params);
+  const query = new URLSearchParams({
+    view: 'cm',
+    fs: '1',
+    to: visibleTo,
+    su: subject,
+    body,
+  });
+  if (bcc.length) query.set('bcc', bcc.join(','));
+  return `https://mail.google.com/mail/?${query.toString()}`;
 }

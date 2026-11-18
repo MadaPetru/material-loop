@@ -337,8 +337,9 @@ const en: TranslationDict = {
     composeEmail: 'Finish message',
     emailSubject: 'Subject',
     emailBody: 'Message',
-    openMail: 'Open email app',
-    mailtoHint: 'Opens your email app with recipient, subject, and message already filled in.',
+    openMail: 'Open in Gmail',
+    mailtoHint:
+      'Opens Gmail in the browser with you in To, recipients in BCC, and the subject/message filled in. Press Send in Gmail to deliver.',
     deactivate: 'Deactivate',
     reactivate: 'Reactivate',
     deactivateTitle: 'Deactivate account?',
