@@ -772,8 +772,14 @@ export const supabaseDb = {
 
     const sort = filters.sort ?? 'newest';
     enriched.sort((a, b) => {
-      if (sort === 'price_asc') return a.price - b.price;
-      if (sort === 'price_desc') return b.price - a.price;
+      if (sort === 'price_asc') {
+        if (a.isFree !== b.isFree) return a.isFree ? -1 : 1;
+        return a.price - b.price;
+      }
+      if (sort === 'price_desc') {
+        if (a.isFree !== b.isFree) return a.isFree ? 1 : -1;
+        return b.price - a.price;
+      }
       if (sort === 'nearest') return (a.distanceKm ?? 1e9) - (b.distanceKm ?? 1e9);
       return (b.publishedAt ?? '').localeCompare(a.publishedAt ?? '');
     });

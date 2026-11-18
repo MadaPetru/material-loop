@@ -48,6 +48,16 @@ export type TranslationDict = {
     category: string;
     options: string;
     freeOnly: string;
+    negotiableOnly: string;
+    newOnly: string;
+    usedOnly: string;
+    pickupAvailable: string;
+    deliveryAvailable: string;
+    sort: string;
+    sortNewest: string;
+    sortPriceAsc: string;
+    sortPriceDesc: string;
+    sortNearest: string;
     radius: string;
     filtersTitle: string;
     resetFilters: string;

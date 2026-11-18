@@ -21,13 +21,38 @@ import { radiusOptions } from '@/lib/labels';
 import { colors, fonts, layout, radii, spacing } from '@/lib/theme';
 import { useResponsive } from '@/lib/useResponsive';
 import { useLocale } from '@/contexts/LocaleContext';
-import type { ListingWithRelations, SearchFilters } from '@/lib/types';
+import type { ListingWithRelations, SearchFilters, SortOption } from '@/lib/types';
+
+const SORT_OPTIONS: SortOption[] = ['newest', 'price_asc', 'price_desc', 'nearest'];
+
+function sortLabel(
+  sort: SortOption,
+  t: (key: string, options?: Record<string, string | number>) => string,
+) {
+  if (sort === 'price_asc') return t('search.sortPriceAsc');
+  if (sort === 'price_desc') return t('search.sortPriceDesc');
+  if (sort === 'nearest') return t('search.sortNearest');
+  return t('search.sortNewest');
+}
 
 function FilterPanel({
   categoryId,
   setCategoryId,
   freeOnly,
   setFreeOnly,
+  negotiableOnly,
+  setNegotiableOnly,
+  newOnly,
+  setNewOnly,
+  usedOnly,
+  setUsedOnly,
+  pickupAvailable,
+  setPickupAvailable,
+  deliveryAvailable,
+  setDeliveryAvailable,
+  sort,
+  setSort,
+  canSortNearest,
   radiusKm,
   setRadiusKm,
   countyId,
@@ -42,6 +67,19 @@ function FilterPanel({
   setCategoryId: (id?: string) => void;
   freeOnly: boolean;
   setFreeOnly: (v: boolean | ((p: boolean) => boolean)) => void;
+  negotiableOnly: boolean;
+  setNegotiableOnly: (v: boolean | ((p: boolean) => boolean)) => void;
+  newOnly: boolean;
+  setNewOnly: (v: boolean | ((p: boolean) => boolean)) => void;
+  usedOnly: boolean;
+  setUsedOnly: (v: boolean | ((p: boolean) => boolean)) => void;
+  pickupAvailable: boolean;
+  setPickupAvailable: (v: boolean | ((p: boolean) => boolean)) => void;
+  deliveryAvailable: boolean;
+  setDeliveryAvailable: (v: boolean | ((p: boolean) => boolean)) => void;
+  sort: SortOption;
+  setSort: (v: SortOption) => void;
+  canSortNearest: boolean;
   radiusKm: number | null;
   setRadiusKm: (v: number | null) => void;
   countyId: string | null;
@@ -55,6 +93,18 @@ function FilterPanel({
   const radiiOpts = radiusOptions();
   return (
     <View style={[styles.filtersInner, compact && styles.filtersCompact]}>
+      <Text style={styles.label}>{t('search.sort')}</Text>
+      <View style={styles.wrapRow}>
+        {SORT_OPTIONS.filter((option) => option !== 'nearest' || canSortNearest).map((option) => (
+          <Chip
+            key={option}
+            label={sortLabel(option, t)}
+            selected={sort === option}
+            onPress={() => setSort(option)}
+          />
+        ))}
+      </View>
+
       <Text style={styles.label}>{t('search.category')}</Text>
       <View style={styles.wrapRow}>
         {categoryOptions.map((item) => (
@@ -73,6 +123,37 @@ function FilterPanel({
           label={t('search.freeOnly')}
           selected={freeOnly}
           onPress={() => setFreeOnly((v) => !v)}
+        />
+        <Chip
+          label={t('search.negotiableOnly')}
+          selected={negotiableOnly}
+          onPress={() => setNegotiableOnly((v) => !v)}
+        />
+        <Chip
+          label={t('search.newOnly')}
+          selected={newOnly}
+          onPress={() => {
+            setNewOnly((v) => !v);
+            setUsedOnly(false);
+          }}
+        />
+        <Chip
+          label={t('search.usedOnly')}
+          selected={usedOnly}
+          onPress={() => {
+            setUsedOnly((v) => !v);
+            setNewOnly(false);
+          }}
+        />
+        <Chip
+          label={t('search.pickupAvailable')}
+          selected={pickupAvailable}
+          onPress={() => setPickupAvailable((v) => !v)}
+        />
+        <Chip
+          label={t('search.deliveryAvailable')}
+          selected={deliveryAvailable}
+          onPress={() => setDeliveryAvailable((v) => !v)}
         />
       </View>
 
@@ -114,6 +195,12 @@ export default function SearchScreen() {
   const [categoryId, setCategoryId] = useState<string | undefined>();
   const [radiusKm, setRadiusKm] = useState<number | null>(null);
   const [freeOnly, setFreeOnly] = useState(false);
+  const [negotiableOnly, setNegotiableOnly] = useState(false);
+  const [newOnly, setNewOnly] = useState(false);
+  const [usedOnly, setUsedOnly] = useState(false);
+  const [pickupAvailable, setPickupAvailable] = useState(false);
+  const [deliveryAvailable, setDeliveryAvailable] = useState(false);
+  const [sort, setSort] = useState<SortOption>('newest');
   const [items, setItems] = useState<ListingWithRelations[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -126,31 +213,62 @@ export default function SearchScreen() {
     return () => clearTimeout(handle);
   }, [query]);
 
+  // Nearest needs a locality center; fall back to newest if city was cleared.
+  useEffect(() => {
+    if (sort === 'nearest' && !cityId) setSort('newest');
+  }, [cityId, sort]);
+
   const baseFilters: Omit<SearchFilters, 'page'> = useMemo(() => {
     const city = cityId ? getCity(cityId) : null;
     const countryWide = radiusKm == null && !countyId && !cityId;
+    const effectiveSort: SortOption =
+      sort === 'nearest' && !city ? 'newest' : sort;
     return {
       query: debouncedQuery || undefined,
       categoryId,
       countyId: countyId || undefined,
       cityId: cityId || undefined,
       freeOnly: freeOnly || undefined,
+      negotiableOnly: negotiableOnly || undefined,
+      newOnly: newOnly || undefined,
+      usedOnly: usedOnly || undefined,
+      pickupAvailable: pickupAvailable || undefined,
+      deliveryAvailable: deliveryAvailable || undefined,
       radiusKm: countryWide ? null : radiusKm,
       countryWide: countryWide || radiusKm == null,
       centerLat: city?.lat,
       centerLng: city?.lng,
-      sort: city ? 'nearest' : 'newest',
+      sort: effectiveSort,
       pageSize: PAGE_SIZE,
     };
-  }, [debouncedQuery, categoryId, countyId, cityId, radiusKm, freeOnly]);
+  }, [
+    debouncedQuery,
+    categoryId,
+    countyId,
+    cityId,
+    radiusKm,
+    freeOnly,
+    negotiableOnly,
+    newOnly,
+    usedOnly,
+    pickupAvailable,
+    deliveryAvailable,
+    sort,
+  ]);
 
   const activeFilterCount =
     (categoryId ? 1 : 0) +
     (freeOnly ? 1 : 0) +
+    (negotiableOnly ? 1 : 0) +
+    (newOnly ? 1 : 0) +
+    (usedOnly ? 1 : 0) +
+    (pickupAvailable ? 1 : 0) +
+    (deliveryAvailable ? 1 : 0) +
     (radiusKm != null ? 1 : 0) +
     (countyId ? 1 : 0) +
     (cityId ? 1 : 0) +
-    (debouncedQuery ? 1 : 0);
+    (debouncedQuery ? 1 : 0) +
+    (sort !== 'newest' ? 1 : 0);
 
   const runSearch = useCallback(
     async (nextPage = 1, append = false) => {
@@ -201,14 +319,26 @@ export default function SearchScreen() {
     setDebouncedQuery('');
     setCategoryId(undefined);
     setFreeOnly(false);
+    setNegotiableOnly(false);
+    setNewOnly(false);
+    setUsedOnly(false);
+    setPickupAvailable(false);
+    setDeliveryAvailable(false);
+    setSort('newest');
     setRadiusKm(null);
     setCountyId(null);
     setCityId(null);
   };
 
   const filterSummary = [
+    sort !== 'newest' ? sortLabel(sort, t) : null,
     categoryId ? CATEGORIES.find((c) => c.id === categoryId)?.name : null,
     freeOnly ? t('common.free') : null,
+    negotiableOnly ? t('search.negotiableOnly') : null,
+    newOnly ? t('search.newOnly') : null,
+    usedOnly ? t('search.usedOnly') : null,
+    pickupAvailable ? t('search.pickupAvailable') : null,
+    deliveryAvailable ? t('search.deliveryAvailable') : null,
     radiusKm != null ? `${radiusKm} km` : null,
     countyId ? getCounty(countyId)?.name : null,
     cityId ? getCity(cityId)?.name : null,
@@ -219,6 +349,19 @@ export default function SearchScreen() {
     setCategoryId,
     freeOnly,
     setFreeOnly,
+    negotiableOnly,
+    setNegotiableOnly,
+    newOnly,
+    setNewOnly,
+    usedOnly,
+    setUsedOnly,
+    pickupAvailable,
+    setPickupAvailable,
+    deliveryAvailable,
+    setDeliveryAvailable,
+    sort,
+    setSort,
+    canSortNearest: Boolean(cityId),
     radiusKm,
     setRadiusKm,
     countyId,
@@ -319,6 +462,27 @@ export default function SearchScreen() {
           </Pressable>
         </ScrollView>
       ) : null}
+
+      <View style={styles.sortBar}>
+        <Text style={styles.label}>{t('search.sort')}</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.summaryRow}
+          nestedScrollEnabled
+        >
+          {SORT_OPTIONS.filter((option) => option !== 'nearest' || Boolean(cityId)).map(
+            (option) => (
+              <Chip
+                key={option}
+                label={sortLabel(option, t)}
+                selected={sort === option}
+                onPress={() => setSort(option)}
+              />
+            ),
+          )}
+        </ScrollView>
+      </View>
 
       <Text style={styles.count}>{resultsLabel}</Text>
     </View>
@@ -489,6 +653,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   wrapRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  sortBar: { gap: spacing.xs },
   summaryRow: { gap: spacing.sm, alignItems: 'center', paddingVertical: 2 },
   summaryChip: {
     backgroundColor: colors.brandSoft,
