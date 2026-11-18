@@ -375,6 +375,7 @@ export default function AdminScreen() {
         subject: mailSubject,
         message: mailBody,
         adminName: user.displayName,
+        adminEmail: user.email,
       });
       await Linking.openURL(url);
       setMailTarget(null);

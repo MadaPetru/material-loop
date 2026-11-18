@@ -47,6 +47,8 @@ export function buildAdminUserMailto(params: {
   subject?: string;
   message?: string;
   adminName?: string | null;
+  /** Visible To address; all user recipients go to BCC only. */
+  adminEmail?: string | null;
 }) {
   const emails = (Array.isArray(params.toEmail) ? params.toEmail : [params.toEmail])
     .map((e) => e.trim())
@@ -64,14 +66,14 @@ export function buildAdminUserMailto(params: {
     .filter((line): line is string => line != null)
     .join('\n');
 
+  // Always BCC recipients so they cannot see each other.
+  // Visible To is the admin (or support) address — not a user recipient.
+  const visibleTo = params.adminEmail?.trim() || SUPPORT_EMAIL;
+  const bcc = emails.filter((e) => e.toLowerCase() !== visibleTo.toLowerCase());
   const parts = [
     `subject=${encodeURIComponent(subject)}`,
     `body=${encodeURIComponent(body)}`,
+    `bcc=${encodeURIComponent(bcc.join(','))}`,
   ];
-  // One primary To; extra recipients as BCC when the URL stays reasonably short.
-  const to = emails[0];
-  const bcc = emails.slice(1);
-  if (bcc.length) parts.push(`bcc=${encodeURIComponent(bcc.join(','))}`);
-
-  return `mailto:${to}?${parts.join('&')}`;
+  return `mailto:${encodeURIComponent(visibleTo)}?${parts.join('&')}`;
 }
