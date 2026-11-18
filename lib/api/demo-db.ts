@@ -437,13 +437,21 @@ export const demoDb = {
   async adminGetAnalytics(): Promise<AdminAnalytics> {
     await this.requireEntitlement('admin.analytics');
     const state = await load();
+    const organicProfiles = state.profiles.filter((p) => !p.isSeed);
     const usersActive = state.profiles.filter((p) => !p.deactivatedAt).length;
     const usersDeactivated = state.profiles.length - usersActive;
+    const usersActiveOrganic = organicProfiles.filter((p) => !p.deactivatedAt).length;
     const active = state.listings.filter((l) => l.status === 'active');
+    const activeOrganic = active.filter((l) => !l.isSeed);
     const sold = state.listings.filter((l) => l.status === 'sold');
     const given = state.listings.filter((l) => l.status === 'given_away');
     const activeCountyIds = new Set(
       active
+        .map((l) => getCity(l.cityId)?.countyId)
+        .filter((id): id is string => !!id),
+    );
+    const organicActiveCountyIds = new Set(
+      activeOrganic
         .map((l) => getCity(l.cityId)?.countyId)
         .filter((id): id is string => !!id),
     );
@@ -454,11 +462,14 @@ export const demoDb = {
       usersActive,
       usersDeactivated,
       usersSeed,
-      usersOrganic: state.profiles.length - usersSeed,
+      usersOrganic: organicProfiles.length,
+      usersActiveOrganic,
+      usersDeactivatedOrganic: organicProfiles.length - usersActiveOrganic,
       admins: state.profiles.filter((p) => hasEntitlement(p, 'admin.panel')).length,
+      adminsOrganic: organicProfiles.filter((p) => hasEntitlement(p, 'admin.panel')).length,
       listingsActive: active.length,
       listingsActiveSeed: active.filter((l) => l.isSeed).length,
-      listingsActiveOrganic: active.filter((l) => !l.isSeed).length,
+      listingsActiveOrganic: activeOrganic.length,
       listingsTotal: notRemoved.length,
       listingsSeed: notRemoved.filter((l) => l.isSeed).length,
       listingsOrganic: notRemoved.filter((l) => !l.isSeed).length,
@@ -469,6 +480,7 @@ export const demoDb = {
       conversations: state.conversations.length,
       messages: state.messages.length,
       countiesWithActiveListings: activeCountyIds.size,
+      countiesWithActiveListingsOrganic: organicActiveCountyIds.size,
       countiesTotal: COUNTIES.length,
     };
   },

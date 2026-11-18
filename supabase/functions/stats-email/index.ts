@@ -43,22 +43,31 @@ function buildStats(
   conversations: number,
   messages: number,
 ) {
+  const organicProfiles = profiles.filter((p) => !p.is_seed);
   const usersActive = profiles.filter((p) => !p.deactivated_at).length;
+  const usersActiveOrganic = organicProfiles.filter((p) => !p.deactivated_at).length;
   const active = listings.filter((l) => l.status === 'active');
+  const activeOrganic = active.filter((l) => !l.is_seed);
   const sold = listings.filter((l) => l.status === 'sold');
   const given = listings.filter((l) => l.status === 'given_away');
   const counties = new Set(active.map((l) => countyIdFromCity(l.city_id)).filter(Boolean));
+  const organicCounties = new Set(
+    activeOrganic.map((l) => countyIdFromCity(l.city_id)).filter(Boolean),
+  );
   const usersSeed = profiles.filter((p) => !!p.is_seed).length;
   return {
     usersTotal: profiles.length,
     usersActive,
     usersDeactivated: profiles.length - usersActive,
     usersSeed,
-    usersOrganic: profiles.length - usersSeed,
+    usersOrganic: organicProfiles.length,
+    usersActiveOrganic,
+    usersDeactivatedOrganic: organicProfiles.length - usersActiveOrganic,
     admins: profiles.filter((p) => (p.roles ?? []).includes('admin')).length,
+    adminsOrganic: organicProfiles.filter((p) => (p.roles ?? []).includes('admin')).length,
     listingsActive: active.length,
     listingsActiveSeed: active.filter((l) => !!l.is_seed).length,
-    listingsActiveOrganic: active.filter((l) => !l.is_seed).length,
+    listingsActiveOrganic: activeOrganic.length,
     listingsTotal: listings.length,
     listingsSeed: listings.filter((l) => !!l.is_seed).length,
     listingsOrganic: listings.filter((l) => !l.is_seed).length,
@@ -70,6 +79,7 @@ function buildStats(
     conversations,
     messages,
     countiesWithActiveListings: counties.size,
+    countiesWithActiveListingsOrganic: organicCounties.size,
     countiesTotal: COUNTIES_TOTAL,
   };
 }
@@ -79,13 +89,13 @@ function formatWhatsApp(stats: ReturnType<typeof buildStats>, generatedAt: strin
     `*MaterialLoop — weekly stats*`,
     generatedAt,
     '',
-    `Users: ${stats.usersOrganic} real · ${stats.usersSeed} fake`,
-    `Listings: ${stats.listingsOrganic} real · ${stats.listingsSeed} fake`,
-    `Active feed: ${stats.listingsActiveOrganic} real · ${stats.listingsActiveSeed} fake`,
+    `Users: ${stats.usersOrganic} real (${stats.usersActiveOrganic} active) · ${stats.usersSeed} demo`,
+    `Listings: ${stats.listingsOrganic} real · ${stats.listingsSeed} demo`,
+    `Active feed: ${stats.listingsActiveOrganic} real · ${stats.listingsActiveSeed} demo`,
     `Sold (real): ${stats.listingsSold}`,
     `Given away (real): ${stats.listingsGivenAway}`,
     `Chat: ${stats.conversations} conversations · ${stats.messages} messages`,
-    `Counties with active: ${stats.countiesWithActiveListings}/${stats.countiesTotal}`,
+    `Counties with real active: ${stats.countiesWithActiveListingsOrganic}/${stats.countiesTotal}`,
   ].join('\n');
 }
 

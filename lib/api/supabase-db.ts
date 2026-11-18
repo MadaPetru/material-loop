@@ -562,9 +562,12 @@ export const supabaseDb = {
       is_seed?: boolean | null;
       city_id: string;
     }>;
+    const organicRows = rows.filter((p) => !p.is_seed);
     const usersActive = rows.filter((p) => !p.deactivated_at).length;
+    const usersActiveOrganic = organicRows.filter((p) => !p.deactivated_at).length;
     const usersSeed = rows.filter((p) => !!p.is_seed).length;
     const active = listings.filter((l) => l.status === 'active');
+    const activeOrganic = active.filter((l) => !l.is_seed);
     const sold = listings.filter((l) => l.status === 'sold');
     const given = listings.filter((l) => l.status === 'given_away');
     const activeCountyIds = new Set(
@@ -572,21 +575,29 @@ export const supabaseDb = {
         .map((l) => getCity(l.city_id)?.countyId)
         .filter((id): id is string => !!id),
     );
+    const organicActiveCountyIds = new Set(
+      activeOrganic
+        .map((l) => getCity(l.city_id)?.countyId)
+        .filter((id): id is string => !!id),
+    );
+    const isAdminRow = (p: (typeof rows)[number]) =>
+      hasEntitlement(
+        { roles: (p.roles ?? []) as UserRole[], deactivatedAt: p.deactivated_at },
+        'admin.panel',
+      );
     return {
       usersTotal: rows.length,
       usersActive,
       usersDeactivated: rows.length - usersActive,
       usersSeed,
-      usersOrganic: rows.length - usersSeed,
-      admins: rows.filter((p) =>
-        hasEntitlement(
-          { roles: (p.roles ?? []) as UserRole[], deactivatedAt: p.deactivated_at },
-          'admin.panel',
-        ),
-      ).length,
+      usersOrganic: organicRows.length,
+      usersActiveOrganic,
+      usersDeactivatedOrganic: organicRows.length - usersActiveOrganic,
+      admins: rows.filter(isAdminRow).length,
+      adminsOrganic: organicRows.filter(isAdminRow).length,
       listingsActive: active.length,
       listingsActiveSeed: active.filter((l) => !!l.is_seed).length,
-      listingsActiveOrganic: active.filter((l) => !l.is_seed).length,
+      listingsActiveOrganic: activeOrganic.length,
       listingsTotal: listings.length,
       listingsSeed: listings.filter((l) => !!l.is_seed).length,
       listingsOrganic: listings.filter((l) => !l.is_seed).length,
@@ -597,6 +608,7 @@ export const supabaseDb = {
       conversations: conversations ?? 0,
       messages: messages ?? 0,
       countiesWithActiveListings: activeCountyIds.size,
+      countiesWithActiveListingsOrganic: organicActiveCountyIds.size,
       countiesTotal: COUNTIES.length,
     };
   },

@@ -128,7 +128,13 @@ export interface AdminAnalytics {
   usersSeed: number;
   /** Real (non-seed) profiles. */
   usersOrganic: number;
+  /** Active real (non-seed) profiles. */
+  usersActiveOrganic: number;
+  /** Deactivated real (non-seed) profiles. */
+  usersDeactivatedOrganic: number;
   admins: number;
+  /** Admins among real (non-seed) profiles. */
+  adminsOrganic: number;
   listingsActive: number;
   listingsActiveSeed: number;
   listingsActiveOrganic: number;
@@ -144,6 +150,8 @@ export interface AdminAnalytics {
   conversations: number;
   messages: number;
   countiesWithActiveListings: number;
+  /** Counties with at least one real (non-seed) active listing. */
+  countiesWithActiveListingsOrganic: number;
   countiesTotal: number;
 }
 

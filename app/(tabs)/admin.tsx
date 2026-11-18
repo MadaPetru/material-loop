@@ -163,43 +163,82 @@ export default function AdminScreen() {
     }, [load]),
   );
 
+  const realUsers = useMemo(() => users.filter((u) => !u.isSeed), [users]);
+  const demoUsers = useMemo(() => users.filter((u) => !!u.isSeed), [users]);
+
+  const matchesUserQuery = useCallback((u: Profile, q: string) => {
+    if (!q) return true;
+    const entitlements = resolveEntitlements(u.roles);
+    return (
+      u.displayName.toLowerCase().includes(q) ||
+      u.email.toLowerCase().includes(q) ||
+      u.roles.some((r) => r.toLowerCase().includes(q)) ||
+      entitlements.some((e) => e.toLowerCase().includes(q))
+    );
+  }, []);
+
   const filteredUsers = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return users.filter((u) => {
+    return realUsers.filter((u) => {
       if (userStatus === 'active' && u.deactivatedAt) return false;
       if (userStatus === 'deactivated' && !u.deactivatedAt) return false;
-      if (!q) return true;
-      const entitlements = resolveEntitlements(u.roles);
-      return (
-        u.displayName.toLowerCase().includes(q) ||
-        u.email.toLowerCase().includes(q) ||
-        u.roles.some((r) => r.toLowerCase().includes(q)) ||
-        entitlements.some((e) => e.toLowerCase().includes(q))
-      );
+      return matchesUserQuery(u, q);
     });
-  }, [users, query, userStatus]);
+  }, [realUsers, query, userStatus, matchesUserQuery]);
+
+  const filteredDemoUsers = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return demoUsers.filter((u) => {
+      if (userStatus === 'active' && u.deactivatedAt) return false;
+      if (userStatus === 'deactivated' && !u.deactivatedAt) return false;
+      return matchesUserQuery(u, q);
+    });
+  }, [demoUsers, query, userStatus, matchesUserQuery]);
 
   const pagedUsers = useMemo(
     () => slicePage(filteredUsers, userPage),
     [filteredUsers, userPage],
   );
 
-  /** LIKE-style recipient filter: substring match on email / name. */
+  /** LIKE-style recipient filter: real users only (substring on email / name). */
   const filteredRecipients = useMemo(() => {
     const q = recipientQuery.trim().toLowerCase();
-    const pool = users.filter((u) => u.email && !u.deactivatedAt);
+    const pool = realUsers.filter((u) => u.email && !u.deactivatedAt);
     if (!q) return pool;
     return pool.filter(
       (u) =>
         u.email.toLowerCase().includes(q) ||
         u.displayName.toLowerCase().includes(q),
     );
-  }, [users, recipientQuery]);
+  }, [realUsers, recipientQuery]);
+
+  const demoRecipients = useMemo(
+    () => demoUsers.filter((u) => u.email && !u.deactivatedAt),
+    [demoUsers],
+  );
 
   const pagedRecipients = useMemo(
     () => slicePage(filteredRecipients, recipientPage),
     [filteredRecipients, recipientPage],
   );
+
+  // Drop any previously selected seed accounts from marketing targets.
+  useEffect(() => {
+    if (!selectedMailIds.size || !demoUsers.length) return;
+    const seedIds = new Set(demoUsers.map((u) => u.id));
+    setSelectedMailIds((prev) => {
+      let changed = false;
+      const next = new Set<string>();
+      for (const id of prev) {
+        if (seedIds.has(id)) {
+          changed = true;
+          continue;
+        }
+        next.add(id);
+      }
+      return changed ? next : prev;
+    });
+  }, [demoUsers, selectedMailIds.size]);
 
   const filteredDrafts = useMemo(() => {
     const q = draftQuery.trim().toLowerCase();
@@ -485,32 +524,41 @@ export default function AdminScreen() {
       </View>
 
       {activeSection === 'users' && canSeeAnalytics && analytics ? (
-        <View style={styles.stats}>
-          <Stat label={t('admin.statUsers')} value={String(analytics.usersTotal)} />
-          <Stat label={t('admin.statOrganicUsers')} value={String(analytics.usersOrganic)} />
-          <Stat label={t('admin.statSeedUsers')} value={String(analytics.usersSeed)} />
-          <Stat label={t('admin.statActive')} value={String(analytics.usersActive)} />
-          <Stat label={t('admin.statAdmins')} value={String(analytics.admins)} />
-          <Stat label={t('admin.statListings')} value={String(analytics.listingsActive)} />
-          <Stat label={t('admin.statOrganicListings')} value={String(analytics.listingsActiveOrganic)} />
-          <Stat label={t('admin.statSeedListings')} value={String(analytics.listingsActiveSeed)} />
-          <Stat label={t('admin.statRealListingsTotal')} value={String(analytics.listingsOrganic)} />
-          <Stat label={t('admin.statFakeListingsTotal')} value={String(analytics.listingsSeed)} />
-          <Stat label={t('admin.statSold')} value={String(analytics.listingsSold)} />
-          <Stat label={t('admin.statGivenAway')} value={String(analytics.listingsGivenAway)} />
-          <Stat label={t('admin.statConversations')} value={String(analytics.conversations)} />
-          <Stat label={t('admin.statMessages')} value={String(analytics.messages)} />
-          <Stat
-            label={t('admin.statCountyCoverage')}
-            value={`${analytics.countiesWithActiveListings}/${analytics.countiesTotal}`}
-          />
-          <Stat label={t('admin.statDeactivated')} value={String(analytics.usersDeactivated)} />
+        <View style={{ gap: spacing.sm, marginTop: spacing.md }}>
+          <Text style={styles.sectionTight}>{t('admin.analyticsRealSection')}</Text>
+          <View style={styles.stats}>
+            <Stat label={t('admin.statOrganicUsers')} value={String(analytics.usersOrganic)} />
+            <Stat label={t('admin.statActive')} value={String(analytics.usersActiveOrganic)} />
+            <Stat label={t('admin.statDeactivated')} value={String(analytics.usersDeactivatedOrganic)} />
+            <Stat label={t('admin.statAdmins')} value={String(analytics.adminsOrganic)} />
+            <Stat label={t('admin.statOrganicListings')} value={String(analytics.listingsActiveOrganic)} />
+            <Stat label={t('admin.statRealListingsTotal')} value={String(analytics.listingsOrganic)} />
+            <Stat label={t('admin.statSold')} value={String(analytics.listingsSold)} />
+            <Stat label={t('admin.statGivenAway')} value={String(analytics.listingsGivenAway)} />
+            <Stat label={t('admin.statConversations')} value={String(analytics.conversations)} />
+            <Stat label={t('admin.statMessages')} value={String(analytics.messages)} />
+            <Stat
+              label={t('admin.statCountyCoverage')}
+              value={`${analytics.countiesWithActiveListingsOrganic}/${analytics.countiesTotal}`}
+            />
+          </View>
+          <Text style={styles.sectionTight}>{t('admin.analyticsDemoSection')}</Text>
+          <Text style={styles.hint}>
+            {t('admin.demoUsersCount', { count: String(analytics.usersSeed) })}
+          </Text>
+          <View style={styles.stats}>
+            <Stat label={t('admin.statSeedUsers')} value={String(analytics.usersSeed)} />
+            <Stat label={t('admin.statSeedListings')} value={String(analytics.listingsActiveSeed)} />
+            <Stat label={t('admin.statFakeListingsTotal')} value={String(analytics.listingsSeed)} />
+            <Stat label={t('admin.statSoldSeed')} value={String(analytics.listingsSoldSeed)} />
+            <Stat label={t('admin.statGivenAwaySeed')} value={String(analytics.listingsGivenAwaySeed)} />
+          </View>
         </View>
       ) : null}
 
       {activeSection === 'users' ? (
         <>
-          <Text style={styles.section}>{t('admin.usersSection')}</Text>
+          <Text style={styles.section}>{t('admin.realUsersSection')}</Text>
           <TextInput
             value={query}
             onChangeText={setQuery}
@@ -581,6 +629,7 @@ export default function AdminScreen() {
         <View style={{ gap: spacing.md }}>
           <Text style={styles.section}>{t('admin.marketingEmailSection')}</Text>
           <Text style={styles.hint}>{t('admin.marketingEmailHint')}</Text>
+          <Text style={styles.hint}>{t('admin.marketingRealOnlyHint')}</Text>
           {canOutreach && canReadUsers ? (
             <>
               <TextInput
@@ -675,6 +724,30 @@ export default function AdminScreen() {
                   pages: String(pageCount(filteredRecipients.length)),
                 })}
               />
+              <View style={styles.demoBlock}>
+                <Text style={styles.sectionTight}>{t('admin.demoUsersSection')}</Text>
+                <Text style={styles.meta}>
+                  {t('admin.demoUsersCount', { count: String(demoUsers.length) })}
+                </Text>
+                <Text style={styles.hint}>{t('admin.marketingDemoRecipientsHint')}</Text>
+                {demoRecipients.length ? (
+                  <View style={{ gap: spacing.sm, maxHeight: 180 }}>
+                    <ScrollView nestedScrollEnabled>
+                      {demoRecipients.map((profile) => (
+                        <View key={profile.id} style={[styles.recipientRow, styles.recipientRowMuted]}>
+                          <View style={styles.seedPill}>
+                            <Text style={styles.seedPillText}>{t('admin.seedBadge')}</Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.name}>{profile.displayName}</Text>
+                            <Text style={styles.meta}>{profile.email}</Text>
+                          </View>
+                        </View>
+                      ))}
+                    </ScrollView>
+                  </View>
+                ) : null}
+              </View>
             </>
           ) : (
             <Text style={styles.hint}>{t('admin.outreachNeedsUsersRead')}</Text>
@@ -736,21 +809,117 @@ export default function AdminScreen() {
         ? filteredRoles
         : pagedDrafts;
 
+  const renderUserCard = (profile: Profile, opts?: { demo?: boolean }) => {
+    const self = profile.id === user.id;
+    const busy = busyId === profile.id;
+    const itemEntitlements = resolveEntitlements(profile.roles);
+    const hasAdminPanel = hasEntitlement(profile, 'admin.panel');
+    const demo = opts?.demo || !!profile.isSeed;
+    return (
+      <View
+        key={profile.id}
+        style={[styles.card, profile.deactivatedAt || demo ? styles.cardMuted : null]}
+      >
+        <View style={styles.cardTop}>
+          <View style={{ flex: 1, gap: 4 }}>
+            <View style={styles.nameRow}>
+              <Text style={styles.name}>
+                {profile.displayName}
+                {self ? ` (${t('admin.you')})` : ''}
+              </Text>
+              {demo ? (
+                <View style={styles.seedPill}>
+                  <Text style={styles.seedPillText}>{t('admin.seedBadge')}</Text>
+                </View>
+              ) : null}
+            </View>
+            <Text style={styles.meta}>{profile.email}</Text>
+            <Text style={styles.meta}>
+              {profile.roles.join(', ')}
+              {hasAdminPanel ? ` · ${t('admin.roleAdmin')}` : ''}
+              {profile.deactivatedAt
+                ? ` · ${t('admin.statusDeactivated')}`
+                : ` · ${t('admin.statusActive')}`}
+            </Text>
+            <Text style={styles.entitlements} numberOfLines={2}>
+              {itemEntitlements.join(' · ')}
+            </Text>
+          </View>
+        </View>
+        <View style={styles.cardActions}>
+          {canOutreach && !demo ? (
+            <Button
+              label={t('admin.emailUser')}
+              variant="secondary"
+              compact
+              onPress={() => openMail([profile])}
+              disabled={busy || !profile.email}
+              style={styles.action}
+            />
+          ) : null}
+          {canAssignRoles && !self ? (
+            <Button
+              label={t('admin.editRoles')}
+              variant="ghost"
+              compact
+              onPress={() => {
+                setRolesEditor(profile);
+                setDraftRoles([...profile.roles]);
+              }}
+              disabled={busy}
+              style={styles.action}
+            />
+          ) : null}
+          {canDeactivateUsers && !self ? (
+            <Button
+              label={profile.deactivatedAt ? t('admin.reactivate') : t('admin.deactivate')}
+              variant={profile.deactivatedAt ? 'secondary' : 'danger'}
+              compact
+              onPress={() =>
+                setPending({
+                  type: 'deactivate',
+                  user: profile,
+                  deactivated: !profile.deactivatedAt,
+                })
+              }
+              disabled={busy}
+              style={styles.action}
+            />
+          ) : null}
+        </View>
+      </View>
+    );
+  };
+
   const listFooter =
     activeSection === 'users' ? (
-      <Pager
-        page={userPage}
-        total={filteredUsers.length}
-        onChange={setUserPage}
-        labelPrev={t('admin.prevPage')}
-        labelNext={t('admin.nextPage')}
-        summary={t('admin.pageSummary', {
-          shown: String(pagedUsers.length),
-          total: String(filteredUsers.length),
-          page: String(clampPage(userPage, filteredUsers.length)),
-          pages: String(pageCount(filteredUsers.length)),
-        })}
-      />
+      <View>
+        <Pager
+          page={userPage}
+          total={filteredUsers.length}
+          onChange={setUserPage}
+          labelPrev={t('admin.prevPage')}
+          labelNext={t('admin.nextPage')}
+          summary={t('admin.pageSummary', {
+            shown: String(pagedUsers.length),
+            total: String(filteredUsers.length),
+            page: String(clampPage(userPage, filteredUsers.length)),
+            pages: String(pageCount(filteredUsers.length)),
+          })}
+        />
+        <View style={styles.demoBlock}>
+          <Text style={styles.section}>{t('admin.demoUsersSection')}</Text>
+          <Text style={styles.meta}>
+            {t('admin.demoUsersCount', { count: String(filteredDemoUsers.length) })}
+          </Text>
+          <Text style={styles.hint}>{t('admin.demoUsersHint')}</Text>
+          {filteredDemoUsers.length ? (
+            filteredDemoUsers.map((profile) => renderUserCard(profile, { demo: true }))
+          ) : (
+            <Text style={styles.empty}>{t('admin.noUsers')}</Text>
+          )}
+        </View>
+      </View>
     ) : activeSection === 'marketing' ? (
       <Pager
         page={draftPage}
@@ -793,75 +962,7 @@ export default function AdminScreen() {
         ListFooterComponent={listFooter}
         renderItem={({ item }) => {
           if (activeSection === 'users') {
-            const profile = item as Profile;
-            const self = profile.id === user.id;
-            const busy = busyId === profile.id;
-            const itemEntitlements = resolveEntitlements(profile.roles);
-            const hasAdminPanel = hasEntitlement(profile, 'admin.panel');
-            return (
-              <View style={[styles.card, profile.deactivatedAt ? styles.cardMuted : null]}>
-                <View style={styles.cardTop}>
-                  <View style={{ flex: 1, gap: 4 }}>
-                    <Text style={styles.name}>
-                      {profile.displayName}
-                      {self ? ` (${t('admin.you')})` : ''}
-                    </Text>
-                    <Text style={styles.meta}>{profile.email}</Text>
-                    <Text style={styles.meta}>
-                      {profile.roles.join(', ')}
-                      {hasAdminPanel ? ` · ${t('admin.roleAdmin')}` : ''}
-                      {profile.deactivatedAt
-                        ? ` · ${t('admin.statusDeactivated')}`
-                        : ` · ${t('admin.statusActive')}`}
-                    </Text>
-                    <Text style={styles.entitlements} numberOfLines={2}>
-                      {itemEntitlements.join(' · ')}
-                    </Text>
-                  </View>
-                </View>
-                <View style={styles.cardActions}>
-                  {canOutreach ? (
-                    <Button
-                      label={t('admin.emailUser')}
-                      variant="secondary"
-                      compact
-                      onPress={() => openMail([profile])}
-                      disabled={busy || !profile.email}
-                      style={styles.action}
-                    />
-                  ) : null}
-                  {canAssignRoles && !self ? (
-                    <Button
-                      label={t('admin.editRoles')}
-                      variant="ghost"
-                      compact
-                      onPress={() => {
-                        setRolesEditor(profile);
-                        setDraftRoles([...profile.roles]);
-                      }}
-                      disabled={busy}
-                      style={styles.action}
-                    />
-                  ) : null}
-                  {canDeactivateUsers && !self ? (
-                    <Button
-                      label={profile.deactivatedAt ? t('admin.reactivate') : t('admin.deactivate')}
-                      variant={profile.deactivatedAt ? 'secondary' : 'danger'}
-                      compact
-                      onPress={() =>
-                        setPending({
-                          type: 'deactivate',
-                          user: profile,
-                          deactivated: !profile.deactivatedAt,
-                        })
-                      }
-                      disabled={busy}
-                      style={styles.action}
-                    />
-                  ) : null}
-                </View>
-              </View>
-            );
+            return renderUserCard(item as Profile);
           }
 
           if (activeSection === 'roles') {
@@ -1308,6 +1409,39 @@ const styles = StyleSheet.create({
     color: colors.ink,
     marginTop: spacing.md,
   },
+  sectionTight: {
+    fontFamily: fonts.sansBold,
+    fontSize: 15,
+    color: colors.ink,
+  },
+  demoBlock: {
+    marginTop: spacing.lg,
+    gap: spacing.sm,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  seedPill: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: radii.pill,
+    backgroundColor: colors.bg,
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
+  seedPillText: {
+    fontFamily: fonts.sansMedium,
+    fontSize: 11,
+    color: colors.inkMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
   sectionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1401,6 +1535,9 @@ const styles = StyleSheet.create({
   recipientRowOn: {
     borderColor: colors.brand,
     backgroundColor: colors.brandSoft,
+  },
+  recipientRowMuted: {
+    opacity: 0.75,
   },
   filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   filterChip: {
