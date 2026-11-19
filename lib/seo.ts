@@ -87,13 +87,11 @@ export function pageMeta({
             'max-video-preview': -1,
           },
         },
+    // Keep only canonical here. Language alternates live in `app/+html.tsx` as
+    // `hrefLang` — Expo's metadata renderer emits lowercase `hreflang`, which
+    // React warns about as an invalid DOM property.
     alternates: {
       canonical: url,
-      languages: {
-        'ro-RO': url,
-        en: url,
-        'x-default': url,
-      },
     },
     openGraph: {
       type: 'website',
