@@ -3,6 +3,7 @@
     "name": "MaterialLoop",
     "slug": "materialloop",
     "version": "1.0.0",
+    "description": "Cumpără, vinde sau oferă gratuit surplusul de materiale de construcții în România. Marketplace circular pentru materiale rămase pe șantier.",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "materialloop",
@@ -76,8 +77,11 @@
     },
     "web": {
       "bundler": "metro",
-      "output": "single",
-      "favicon": "./assets/images/favicon.png"
+      "output": "static",
+      "favicon": "./assets/images/favicon.png",
+      "name": "MaterialLoop",
+      "shortName": "MaterialLoop",
+      "description": "Marketplace pentru materiale de construcții rămase în România — cumpără, vinde sau oferă gratuit."
     },
     "plugins": [
       [
@@ -128,7 +132,9 @@
             ]
           }
         }
-      ]
+      ],
+      "expo-status-bar",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true

@@ -10,8 +10,13 @@ import { useLocale } from '@/contexts/LocaleContext';
 import { getAuthRedirectTo } from '@/lib/auth/redirect';
 import { marketplace } from '@/lib/api/marketplace';
 import { getSupabase } from '@/lib/supabase';
+import { pageMeta } from '@/lib/seo';
 import { colors, fonts, spacing } from '@/lib/theme';
 import { toUserError } from '@/lib/userErrors';
+
+export function generateMetadata() {
+  return pageMeta({ title: 'Resetare parolă', path: '/forgot-password', noIndex: true });
+}
 
 export default function ForgotPasswordScreen() {
   const { t } = useLocale();

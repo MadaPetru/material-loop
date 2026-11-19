@@ -25,12 +25,21 @@ import { useLocale } from '@/contexts/LocaleContext';
 import { marketplace } from '@/lib/api/marketplace';
 import { MAX_PHOTOS } from '@/lib/config';
 import { conditionLabels, unitLabels } from '@/lib/labels';
+import { pageMeta } from '@/lib/seo';
 import { colors, fonts, radii, spacing } from '@/lib/theme';
 import { toUserError } from '@/lib/userErrors';
 import type { MeasurementUnit, ProductCondition } from '@/lib/types';
 
 const CONDITIONS = Object.keys(conditionLabels) as ProductCondition[];
 const UNITS = Object.keys(unitLabels) as MeasurementUnit[];
+
+export async function generateStaticParams(): Promise<{ id: string }[]> {
+  return [];
+}
+
+export function generateMetadata() {
+  return pageMeta({ title: 'Editează anunț', path: '/listing/edit', noIndex: true });
+}
 
 export default function EditListingScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();

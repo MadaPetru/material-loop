@@ -9,8 +9,18 @@ import { LanguageSelector } from '@/components/ui/LanguageSelector';
 import { Screen } from '@/components/ui/Screen';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocale } from '@/contexts/LocaleContext';
+import { pageMeta } from '@/lib/seo';
 import { colors, fonts, spacing } from '@/lib/theme';
 import { toUserError } from '@/lib/userErrors';
+
+export function generateMetadata() {
+  return pageMeta({
+    title: 'Autentificare',
+    description: 'Autentifică-te în MaterialLoop pentru a publica și gestiona anunțuri.',
+    path: '/login',
+    noIndex: true,
+  });
+}
 
 export default function LoginScreen() {
   const { signIn, signInWithGoogle, isDemo, user, loading: authLoading } = useAuth();

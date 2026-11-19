@@ -18,6 +18,15 @@ import { Button } from '@/components/ui/Button';
 import { ErrorBanner } from '@/components/ui/ErrorBanner';
 import { Input } from '@/components/ui/Input';
 import { CATEGORIES, subcategoriesFor } from '@/data/categories';
+import { pageMeta } from '@/lib/seo';
+
+export function generateMetadata() {
+  return pageMeta({
+    title: 'Creează anunț',
+    path: '/listing/create',
+    noIndex: true,
+  });
+}
 import { formatCityCounty, getCity, nearestCity } from '@/data/romania';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocale } from '@/contexts/LocaleContext';

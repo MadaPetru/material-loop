@@ -7,9 +7,19 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocale } from '@/contexts/LocaleContext';
 import { marketplace } from '@/lib/api/marketplace';
+import { pageMeta } from '@/lib/seo';
 import { colors, fonts, layout, radii, spacing } from '@/lib/theme';
 import { useResponsive } from '@/lib/useResponsive';
 import type { ListingWithRelations } from '@/lib/types';
+
+export function generateMetadata() {
+  return pageMeta({
+    title: 'Publică materiale rămase',
+    description:
+      'Publică gratuit anunțuri cu materiale de construcții rămase — vinde surplusul sau oferă-l comunității din România.',
+    path: '/sell',
+  });
+}
 
 export default function SellTab() {
   const { user } = useAuth();

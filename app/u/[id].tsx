@@ -6,8 +6,25 @@ import { formatCityCounty } from '@/data/romania';
 import { marketplace } from '@/lib/api/marketplace';
 import { isPublicFeedListing } from '@/lib/listingVisibility';
 import { publicFacingText } from '@/lib/publicListingCopy';
+import { pageMeta } from '@/lib/seo';
 import { colors, fonts, spacing } from '@/lib/theme';
 import type { ListingWithRelations, Profile } from '@/lib/types';
+
+export async function generateStaticParams(): Promise<{ id: string }[]> {
+  return [];
+}
+
+export function generateMetadata(
+  _request: undefined,
+  params: Record<string, string | string[]>
+) {
+  const id = Array.isArray(params.id) ? params.id[0] : params.id;
+  return pageMeta({
+    title: 'Profil vânzător',
+    description: 'Profil public MaterialLoop — anunțuri de materiale de construcții rămase.',
+    path: id ? `/u/${id}` : '/',
+  });
+}
 
 export default function SellerProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();

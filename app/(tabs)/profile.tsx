@@ -12,9 +12,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useConsent } from '@/contexts/ConsentContext';
 import { useLocale } from '@/contexts/LocaleContext';
 import { formatRoPhoneDisplay } from '@/lib/phone';
+import { pageMeta } from '@/lib/seo';
 import { toUserError } from '@/lib/userErrors';
 import { colors, fonts, radii, spacing } from '@/lib/theme';
 import { useResponsive } from '@/lib/useResponsive';
+
+export function generateMetadata() {
+  return pageMeta({ title: 'Profil', path: '/profile', noIndex: true });
+}
 
 export default function ProfileScreen() {
   const { user, signOut, deleteAccount, isDemo, can, refresh } = useAuth();

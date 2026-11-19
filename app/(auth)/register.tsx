@@ -10,8 +10,18 @@ import { Screen } from '@/components/ui/Screen';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocale } from '@/contexts/LocaleContext';
 import { isEmailConfirmRequiredError } from '@/lib/auth/errors';
+import { pageMeta } from '@/lib/seo';
 import { colors, fonts, radii, spacing } from '@/lib/theme';
 import { toUserError } from '@/lib/userErrors';
+
+export function generateMetadata() {
+  return pageMeta({
+    title: 'Creează cont',
+    description: 'Creează un cont MaterialLoop pentru a publica materiale de construcții rămase.',
+    path: '/register',
+    noIndex: true,
+  });
+}
 
 export default function RegisterScreen() {
   const { signUp, signInWithGoogle, user, loading: authLoading } = useAuth();

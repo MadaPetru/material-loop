@@ -7,9 +7,14 @@ import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocale } from '@/contexts/LocaleContext';
 import { marketplace } from '@/lib/api/marketplace';
+import { pageMeta } from '@/lib/seo';
 import { colors, layout, spacing } from '@/lib/theme';
 import { useResponsive } from '@/lib/useResponsive';
 import type { ListingWithRelations } from '@/lib/types';
+
+export function generateMetadata() {
+  return pageMeta({ title: 'Favorite', path: '/favorites', noIndex: true });
+}
 
 export default function FavoritesScreen() {
   const { user } = useAuth();

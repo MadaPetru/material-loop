@@ -9,9 +9,19 @@ import { Screen } from '@/components/ui/Screen';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocale } from '@/contexts/LocaleContext';
 import { SUPPORT_EMAIL, buildContactMailto, type ContactTopic } from '@/lib/contact';
+import { pageMeta } from '@/lib/seo';
 import { toUserError } from '@/lib/userErrors';
 import { colors, fonts, radii, spacing } from '@/lib/theme';
 import { useResponsive } from '@/lib/useResponsive';
+
+export function generateMetadata() {
+  return pageMeta({
+    title: 'Contact',
+    description:
+      'Contactează echipa MaterialLoop pentru suport, feedback sau raportări legate de marketplace-ul de materiale rămase.',
+    path: '/contact',
+  });
+}
 
 export default function ContactScreen() {
   const { user } = useAuth();

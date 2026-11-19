@@ -21,6 +21,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLocale } from '@/contexts/LocaleContext';
 import { marketplace } from '@/lib/api/marketplace';
 import { buildAdminUserGmailComposeUrl } from '@/lib/contact';
+import { pageMeta } from '@/lib/seo';
 import {
   ENTITLEMENT_GROUPS,
   filterKnownEntitlements,
@@ -42,6 +43,10 @@ type PendingAction =
   | { type: 'deleteRole'; role: RoleDefinition }
   | { type: 'deleteAd'; ad: MarketingAd }
   | null;
+
+export function generateMetadata() {
+  return pageMeta({ title: 'Admin', path: '/admin', noIndex: true });
+}
 
 export default function AdminScreen() {
   const { user, can, refresh } = useAuth();

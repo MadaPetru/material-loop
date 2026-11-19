@@ -18,6 +18,11 @@ import { ErrorBanner } from '@/components/ui/ErrorBanner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocale } from '@/contexts/LocaleContext';
 import { useUnreadMessages } from '@/contexts/UnreadMessagesContext';
+import { pageMeta } from '@/lib/seo';
+
+export function generateMetadata() {
+  return pageMeta({ title: 'Mesaje', path: '/messages', noIndex: true });
+}
 import { marketplace } from '@/lib/api/marketplace';
 import { IS_DEMO } from '@/lib/config';
 import { resolveListingCoverUrl } from '@/lib/defaultListingPhoto';

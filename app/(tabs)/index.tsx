@@ -13,11 +13,16 @@ import { ListingCard } from '@/components/listings/ListingCard';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { marketplace } from '@/lib/api/marketplace';
+import { pageMeta } from '@/lib/seo';
 import { colors, fonts, layout, radii, spacing } from '@/lib/theme';
 import type { ListingWithRelations } from '@/lib/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocale } from '@/contexts/LocaleContext';
 import { useResponsive } from '@/lib/useResponsive';
+
+export function generateMetadata() {
+  return pageMeta({ path: '/' });
+}
 
 export default function HomeScreen() {
   const { isDemo } = useAuth();

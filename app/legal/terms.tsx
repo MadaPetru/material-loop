@@ -2,7 +2,17 @@ import { Link } from 'expo-router';
 import { Pressable, Text } from 'react-native';
 import { LegalDoc } from '@/components/legal/LegalDoc';
 import { useLocale } from '@/contexts/LocaleContext';
+import { pageMeta } from '@/lib/seo';
 import { colors, fonts, spacing } from '@/lib/theme';
+
+export function generateMetadata() {
+  return pageMeta({
+    title: 'Termeni și condiții',
+    description:
+      'Termenii și condițiile MaterialLoop pentru publicarea și tranzacționarea materialelor de construcții rămase.',
+    path: '/legal/terms',
+  });
+}
 
 export default function TermsScreen() {
   const { locale, t } = useLocale();

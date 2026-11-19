@@ -18,10 +18,20 @@ import { CATEGORIES } from '@/data/categories';
 import { getCity, getCounty } from '@/data/romania';
 import { marketplace } from '@/lib/api/marketplace';
 import { radiusOptions } from '@/lib/labels';
+import { pageMeta } from '@/lib/seo';
 import { colors, fonts, layout, radii, spacing } from '@/lib/theme';
 import { useResponsive } from '@/lib/useResponsive';
 import { useLocale } from '@/contexts/LocaleContext';
 import type { ListingWithRelations, SearchFilters, SortOption } from '@/lib/types';
+
+export function generateMetadata() {
+  return pageMeta({
+    title: 'Caută materiale de construcții rămase',
+    description:
+      'Caută anunțuri de materiale rămase pe șantier în toată România — pe județ, localitate, categorie, rază sau doar gratuite.',
+    path: '/search',
+  });
+}
 
 const SORT_OPTIONS: SortOption[] = ['newest', 'price_asc', 'price_desc', 'nearest'];
 

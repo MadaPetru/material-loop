@@ -8,7 +8,12 @@ import { getCity } from '@/data/romania';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocale } from '@/contexts/LocaleContext';
 import { formatRoPhoneDisplay, normalizeRoPhone } from '@/lib/phone';
+import { pageMeta } from '@/lib/seo';
 import { colors, fonts, radii, spacing } from '@/lib/theme';
+
+export function generateMetadata() {
+  return pageMeta({ title: 'Editează profilul', path: '/profile/edit', noIndex: true });
+}
 
 export default function EditProfileScreen() {
   const { user, updateProfile, requestPhoneVerification, confirmPhoneVerification, clearPhone, isDemo } =

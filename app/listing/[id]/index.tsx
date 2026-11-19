@@ -21,9 +21,28 @@ import { resolveListingCoverUrl } from '@/lib/defaultListingPhoto';
 import { conditionLabels, formatPrice, formatQuantity, statusLabels } from '@/lib/labels';
 import { canContactListing } from '@/lib/listingVisibility';
 import { publicFacingText } from '@/lib/publicListingCopy';
+import { pageMeta } from '@/lib/seo';
 import { colors, fonts, radii, spacing } from '@/lib/theme';
 import { toUserError } from '@/lib/userErrors';
 import type { ListingStatus, ListingWithRelations } from '@/lib/types';
+
+/** Dynamic listing HTML is client-routed; prerender known IDs when a build-time catalog exists. */
+export async function generateStaticParams(): Promise<{ id: string }[]> {
+  return [];
+}
+
+export function generateMetadata(
+  _request: undefined,
+  params: Record<string, string | string[]>
+) {
+  const id = Array.isArray(params.id) ? params.id[0] : params.id;
+  return pageMeta({
+    title: 'Anunț materiale rămase',
+    description:
+      'Vezi detalii despre un anunț de materiale de construcții rămase pe MaterialLoop — preț, locație și contact vânzător.',
+    path: id ? `/listing/${id}` : '/search',
+  });
+}
 
 export default function ListingDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();

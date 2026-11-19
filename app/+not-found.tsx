@@ -1,6 +1,11 @@
 import { Link, Stack } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
+import { pageMeta } from '@/lib/seo';
 import { colors, fonts, spacing } from '@/lib/theme';
+
+export function generateMetadata() {
+  return pageMeta({ title: 'Pagină negăsită', path: '/', noIndex: true });
+}
 
 export default function NotFoundScreen() {
   return (

@@ -8,8 +8,13 @@ import { LanguageSelector } from '@/components/ui/LanguageSelector';
 import { Screen } from '@/components/ui/Screen';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocale } from '@/contexts/LocaleContext';
+import { pageMeta } from '@/lib/seo';
 import { colors, fonts, spacing } from '@/lib/theme';
 import { toUserError } from '@/lib/userErrors';
+
+export function generateMetadata() {
+  return pageMeta({ title: 'Parolă nouă', path: '/reset-password', noIndex: true });
+}
 
 export default function ResetPasswordScreen() {
   const { updatePassword, signOut, user, loading: authLoading, isDemo } = useAuth();
